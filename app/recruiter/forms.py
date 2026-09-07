@@ -53,18 +53,22 @@ class RecruiterRegistrationForm(FlaskForm):
     industry = SelectField(
         "Industry",
         choices=[
+            ("", "Select industry"),
             ("technology", "Technology"), ("finance", "Finance"),
             ("healthcare", "Healthcare"), ("manufacturing", "Manufacturing"),
             ("retail", "Retail"), ("other", "Other"),
         ],
+        validators=[DataRequired(message="Please select an industry.")],
     )
     company_size = SelectField(
         "Company size",
         choices=[
+            ("", "Select company size"),
             ("1-10", "1–10 employees"), ("11-50", "11–50 employees"),
             ("51-200", "51–200 employees"), ("201-500", "201–500 employees"),
             ("500+", "500+ employees"),
         ],
+        validators=[DataRequired(message="Please select a company size.")],
     )
     company_website = StringField("Company website", validators=[Optional(), Length(max=255), URL(require_tld=False), no_control_characters])
 
@@ -103,20 +107,28 @@ class JobPostForm(FlaskForm):
     job_type = SelectField(
         "Job type",
         choices=[
+            ("", "Select job type"),
             ("full_time", "Full-time"), ("part_time", "Part-time"),
             ("internship", "Internship"), ("contract", "Contract"),
         ],
+        validators=[DataRequired(message="Please select a job type.")],
     )
     work_mode = SelectField(
         "Work mode",
-        choices=[("remote", "Remote"), ("hybrid", "Hybrid"), ("onsite", "On-site")],
+        choices=[
+            ("", "Select work mode"),
+            ("remote", "Remote"), ("hybrid", "Hybrid"), ("onsite", "On-site"),
+        ],
+        validators=[DataRequired(message="Please select a work mode.")],
     )
     experience_level = SelectField(
         "Experience level",
         choices=[
+            ("", "Select experience level"),
             ("entry", "Entry level"), ("mid", "Mid level"),
             ("senior", "Senior"), ("lead", "Lead"),
         ],
+        validators=[DataRequired(message="Please select an experience level.")],
     )
     location = StringField("Location", validators=[Optional(), Length(max=150), no_control_characters])
     salary_min = StringField("Minimum salary (LPA)", validators=[Optional(), Length(max=50), no_control_characters, optional_whole_number])

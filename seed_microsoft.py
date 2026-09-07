@@ -54,13 +54,15 @@ def _do_seed():
         admin.set_password("Admin@123")
         db.session.add(admin)
         db.session.flush()
-        print(f"[+] Created Admin User: {admin_email}")
-
+        print(f"[+] Created Admin User: {admin_email} / Admin@123")
+        print("    *** Change this password immediately after first login! ***")
     else:
-        admin.set_password("Admin@123")
-        admin.is_active_account = True
-        db.session.flush()
-        print(f"[*] Updated Admin User: {admin_email}")
+        # Security fix: never reset an existing admin's password or re-enable
+        # a disabled account from a seed script.  The original code silently
+        # undid any admin-initiated password change or account disable on every
+        # seed run (including the now-removed web-accessible /seed-demo route).
+        print(f"[*] Admin user already exists — leaving credentials untouched: {admin_email}")
+
     # -------------------------------------------------------------
     # 1. RECRUITER & COMPANY: Microsoft Corporation
     # -------------------------------------------------------------
@@ -78,14 +80,11 @@ def _do_seed():
         user.set_password(recruiter_pass)
         db.session.add(user)
         db.session.flush()
-        print(f"[+] Created Recruiter User: {recruiter_email}")
+        print(f"[+] Created Recruiter User: {recruiter_email} / {recruiter_pass}")
     else:
-        user.full_name = "Sarah Jenkins"
-        user.set_password(recruiter_pass)
-        user.role = User.ROLE_RECRUITER
-        user.is_active_account = True
-        db.session.flush()
-        print(f"[*] Updated Recruiter User: {recruiter_email}")
+        # Security fix: do not reset password or re-enable account on re-seed.
+        print(f"[*] Recruiter user already exists — leaving credentials untouched: {recruiter_email}")
+
 
     profile = RecruiterProfile.query.filter_by(user_id=user.id).first()
     if not profile:

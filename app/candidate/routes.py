@@ -878,6 +878,9 @@ def settings():
         for field in ("github_url", "linkedin_url", "portfolio_url", "preferred_job_role", "preferred_location", "work_preference", "expected_salary", "experience_level"):
             setattr(current_user, field, getattr(form, field).data or None)
         uploaded = form.avatar.data
+        if not current_user.avatar_filename and (not uploaded or not uploaded.filename):
+            flash("Profile photo is required. Please upload a clear photo of yourself.", "error")
+            return redirect(url_for("candidate.settings"))
         if uploaded and uploaded.filename:
             try:
                 inspect_file_magic(uploaded.stream, uploaded.filename, allowed_category="avatar")

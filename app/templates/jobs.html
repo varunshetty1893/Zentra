@@ -4,7 +4,7 @@
 
 {% macro check(name, value, label) %}
 <label class="flex items-center gap-2 py-1.5 text-xs sm:text-sm text-slate-600 hover:text-ink cursor-pointer select-none">
-  <input type="checkbox" name="{{ name }}" value="{{ value }}" {% if value in request.args.getlist(name) %}checked{% endif %} class="accent-indigo-600 w-4 h-4 rounded border-slate-300">
+  <input type="checkbox" name="{{ name }}" value="{{ value }}" {% if value in clean_filters[name] %}checked{% endif %} class="accent-indigo-600 w-4 h-4 rounded border-slate-300">
   <span>{{ label }}</span>
 </label>
 {% endmacro %}
@@ -110,8 +110,8 @@
           <div class="filter-group">
             <h3>Salary (LPA)</h3>
             <div class="flex gap-2">
-              <input name="salary_min" value="{{ request.args.get('salary_min','') }}" inputmode="numeric" placeholder="Min" class="filter-input">
-              <input name="salary_max" value="{{ request.args.get('salary_max','') }}" inputmode="numeric" placeholder="Max" class="filter-input">
+              <input name="salary_min" value="{{ clean_filters.salary_min if clean_filters.salary_min is not none else '' }}" inputmode="numeric" placeholder="Min" class="filter-input">
+              <input name="salary_max" value="{{ clean_filters.salary_max if clean_filters.salary_max is not none else '' }}" inputmode="numeric" placeholder="Max" class="filter-input">
             </div>
           </div>
 
@@ -135,7 +135,7 @@
     <section>
       <div class="relative">
         <i class="bi bi-search absolute top-1/2 -translate-y-1/2 left-4 text-slate-400"></i>
-        <input form="job-filter" name="q" value="{{ request.args.get('q','') }}" placeholder="Search by job title, skill, or company" class="w-full border border-slate-200 rounded-xl pl-11 pr-24 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600">
+        <input form="job-filter" name="q" value="{{ clean_filters.q }}" placeholder="Search by job title, skill, or company" class="w-full border border-slate-200 rounded-xl pl-11 pr-24 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600">
         <button form="job-filter" type="submit" class="absolute right-2 top-2 bottom-2 bg-ink hover:bg-slate-800 text-white px-4 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer">
           Search
         </button>
@@ -146,9 +146,9 @@
           <b class="text-ink">{{ pagination.total }}</b> job{{ 's' if pagination.total != 1 else '' }} found{% if current_user.is_authenticated and current_user.is_candidate %} · ranked for your resume{% endif %}
           {% if pagination.pages > 1 %}<span class="text-slate-400"> · page {{ current_page }} of {{ pagination.pages }}</span>{% endif %}
         </p>
-        {% if request.args.get('q') %}
+        {% if clean_filters.q %}
         <a href="{{ url_for('main.jobs') }}" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
-          <span>Search: "{{ request.args.get('q') }}"</span>
+          <span>Search: "{{ clean_filters.q }}"</span>
           <i class="bi bi-x-circle-fill text-slate-400 hover:text-slate-600"></i>
         </a>
         {% endif %}
@@ -269,12 +269,12 @@
            Pass None for empty values so url_for omits them entirely. #}
         {% macro page_url(p) %}{{ url_for('main.jobs',
           page=p,
-          q=request.args.get('q') or none,
-          experience=request.args.getlist('experience') or none,
-          work_mode=request.args.getlist('work_mode') or none,
-          job_type=request.args.getlist('job_type') or none,
-          salary_min=request.args.get('salary_min') or none,
-          salary_max=request.args.get('salary_max') or none
+          q=clean_filters.q or none,
+          experience=clean_filters.experience or none,
+          work_mode=clean_filters.work_mode or none,
+          job_type=clean_filters.job_type or none,
+          salary_min=clean_filters.salary_min if clean_filters.salary_min is not none else none,
+          salary_max=clean_filters.salary_max if clean_filters.salary_max is not none else none
         ) }}{% endmacro %}
 
         {# Previous button #}

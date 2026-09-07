@@ -53,6 +53,9 @@ class TestCandidateSecurity(unittest.TestCase):
             public_resume_enabled=True,
             recruiter_discoverable=True,
             is_active_account=True,
+            # avatar_filename must be set so the settings route's "photo required"
+            # gate doesn't block test_22 before it reaches field-validation logic.
+            avatar_filename="test_avatar_alice.jpg",
         )
         cls.alice.set_password("Alice@1234")
         db.session.add(cls.alice)

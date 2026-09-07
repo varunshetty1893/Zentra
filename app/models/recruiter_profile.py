@@ -21,6 +21,7 @@ class RecruiterProfile(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), unique=True, nullable=False)
 
     company_name = db.Column(db.String(200), nullable=False)
+    logo_filename = db.Column(db.String(255), nullable=True)
     industry = db.Column(db.String(100), nullable=True)
     company_size = db.Column(db.String(50), nullable=True)
     company_website = db.Column(db.String(255), nullable=True)

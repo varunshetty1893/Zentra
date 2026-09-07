@@ -57,6 +57,7 @@ def public_profile(slug):
 
 @main_bp.route("/jobs")
 def jobs():
+    import re
     from flask import redirect, url_for, flash
     from app.models.admin_setting import AdminSetting
 
@@ -79,7 +80,11 @@ def jobs():
         or_(Job.application_deadline.is_(None), Job.application_deadline >= utcnow())
     )
 
-    keyword = request.args.get("q", "").strip()
+    keyword = (request.args.get("q") or "").strip()
+    if len(keyword) > 100:
+        keyword = keyword[:100].strip()
+    if re.search(r"[\x00-\x08\x0B\x0C\x0E-\x1F]", keyword):
+        keyword = ""
     if keyword:
         tokens = [t for t in keyword.split() if t]
         for token in tokens:
@@ -95,17 +100,26 @@ def jobs():
                 Job.location.ilike(t_pat),
             ))
 
-    levels = request.args.getlist("experience")
+    allowed_experience = {"entry", "mid", "senior"}
+    allowed_work_modes = {"remote", "hybrid", "onsite"}
+    allowed_job_types = {"full_time", "part_time", "internship"}
+
+    levels = [value for value in request.args.getlist("experience") if value in allowed_experience]
     if levels:
         query = query.filter(Job.experience_level.in_(levels))
-    modes = request.args.getlist("work_mode")
+    modes = [value for value in request.args.getlist("work_mode") if value in allowed_work_modes]
     if modes:
         query = query.filter(Job.work_mode.in_(modes))
-    job_types = request.args.getlist("job_type")
+    job_types = [value for value in request.args.getlist("job_type") if value in allowed_job_types]
     if job_types:
         query = query.filter(Job.job_type.in_(job_types))
-    salary_min = request.args.get("salary_min", type=int)
-    salary_max = request.args.get("salary_max", type=int)
+
+    salary_min_raw = (request.args.get("salary_min") or "").strip()
+    salary_max_raw = (request.args.get("salary_max") or "").strip()
+    salary_min = int(salary_min_raw) if salary_min_raw.isdigit() and int(salary_min_raw) <= 1000 else None
+    salary_max = int(salary_max_raw) if salary_max_raw.isdigit() and int(salary_max_raw) <= 1000 else None
+    if salary_min is not None and salary_max is not None and salary_min > salary_max:
+        salary_min, salary_max = salary_max, salary_min
     if salary_min is not None:
         query = query.filter(Job.salary_max >= salary_min)
     if salary_max is not None:
@@ -141,6 +155,14 @@ def jobs():
         match_explanations=match_explanations,
         pagination=pagination,
         current_page=page,
+        clean_filters={
+            "q": keyword,
+            "experience": levels,
+            "work_mode": modes,
+            "job_type": job_types,
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+        },
     )
 
 
@@ -382,13 +404,5 @@ def support_attachment(filename):
     return send_from_directory(support_dir, safe_name)
 
 
-@main_bp.route("/seed-demo", methods=["GET", "POST"])
-def seed_demo():
-    """Web-accessible endpoint to seed Microsoft recruiter, jobs, and candidate on Vercel/cloud database."""
-    try:
-        from seed_microsoft import seed_microsoft
-        seed_microsoft()
-        flash("Demo data (Microsoft recruiter, 12 jobs, Candidate Alex Chen, Admin) successfully initialized in database!", "success")
-    except Exception as e:
-        flash(f"Error seeding demo data: {e}", "error")
-    return redirect(url_for("auth.login"))
+# /seed-demo removed: unauthenticated route that reset hardcoded admin credentials (security audit finding #1).
+# Use `python seed_microsoft.py` from the command line in dev/staging only.

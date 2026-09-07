@@ -121,6 +121,12 @@ def _auto_close_other_applications_on_hire(hired_application):
 def _reopen_auto_closed_applications_on_unhire(unhired_application):
     """If a candidate's HIRED status is reversed (HIRED -> REJECTED), restore any other
     applications that were auto-closed solely due to this hire to their previous stage.
+
+    Previously this searched only the *most recent* event, which meant that any
+    recruiter note added after the auto-close event would break the string-match
+    and silently leave the application rejected forever.  Now we search *all*
+    events for the application and find the correct auto-close event regardless
+    of what happened after it.
     """
     tag = f"(Job #{unhired_application.job_id})"
     other_rejected_apps = Application.query.filter(
@@ -130,12 +136,21 @@ def _reopen_auto_closed_applications_on_unhire(unhired_application):
     ).all()
 
     for other in other_rejected_apps:
-        last_event = ApplicationEvent.query.filter_by(
-            application_id=other.id
-        ).order_by(ApplicationEvent.created_at.desc()).first()
+        # Search all events for this application for the specific auto-close note
+        # from this hire, rather than assuming it is the most recent event.
+        auto_close_event = (
+            ApplicationEvent.query
+            .filter(
+                ApplicationEvent.application_id == other.id,
+                ApplicationEvent.note.like("Automatically closed from stage %"),
+                ApplicationEvent.note.like(f"%{tag}%"),
+            )
+            .order_by(ApplicationEvent.created_at.desc())
+            .first()
+        )
 
-        if last_event and "Automatically closed from stage '" in (last_event.note or "") and tag in (last_event.note or ""):
-            match = re.search(r"Automatically closed from stage '([^']+)'", last_event.note)
+        if auto_close_event:
+            match = re.search(r"Automatically closed from stage '([^']+)'", auto_close_event.note)
             target_status = match.group(1) if match and match.group(1) in Application.STATUSES else Application.STATUS_APPLIED
             other.status = target_status
             db.session.add(ApplicationEvent(
@@ -252,7 +267,12 @@ def register():
             reviewed_at=utcnow() if auto_approve else None,
         )
         db.session.add(profile)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            flash("An account with this work email already exists.", "error")
+            return render_template("recruiters.html", form=form)
 
         # Notify administrators about new recruiter registration
         Notification.notify_admins(

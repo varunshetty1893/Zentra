@@ -54,6 +54,26 @@ class Config:
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
     AI_REQUEST_TIMEOUT_SECONDS = int(os.environ.get("AI_REQUEST_TIMEOUT_SECONDS", 6))
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+
+    # Mail (Gmail SMTP) — requires a Google App Password, not your login password.
+    # Generate one at: Google Account -> Security -> 2-Step Verification -> App Passwords
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() == "true"
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", MAIL_USERNAME)
+    # Address that admin-facing notifications (contact form, security alerts) go to
+    MAIL_ADMIN_ADDRESS = os.environ.get("MAIL_ADMIN_ADDRESS", MAIL_USERNAME)
+    # If true, emails are printed to the console instead of actually sent —
+    # handy for local dev so you don't burn your Gmail daily quota on every reload.
+    MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() == "true"
+
+
 
 
 class DevelopmentConfig(Config):
@@ -83,6 +103,7 @@ class TestingConfig(Config):
     SQLALCHEMY_ENGINE_OPTIONS = {}
     WTF_CSRF_ENABLED = False
     RATELIMIT_ENABLED = False
+    MAIL_SUPPRESS_SEND = True  # never hit real SMTP during the test suite
 
 
 config_by_name = {

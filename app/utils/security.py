@@ -1,5 +1,4 @@
-"""Security utilities: Rate limiting, failed login tracking with exponential backoff, and input sanitization."""
-
+import os
 import time
 import re
 from collections import defaultdict
@@ -7,11 +6,15 @@ from flask import request, current_app, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-# Global limiter instance
+# Global limiter instance.
+# storage_uri is read from the environment so that production deployments can
+# point at Redis (set RATELIMIT_STORAGE_URI=redis://...) while local dev
+# falls back to in-process memory.  Previously this was hardcoded to
+# "memory://", making RATELIMIT_STORAGE_URI in config.py dead code.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "60 per hour"],
-    storage_uri="memory://",
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
     strategy="moving-window",
     headers_enabled=True,
 )

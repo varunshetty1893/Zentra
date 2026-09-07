@@ -24,7 +24,8 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)  # NULL for Google-only accounts
+    google_id = db.Column(db.String(128), unique=True, nullable=True, index=True)
     role = db.Column(db.String(20), nullable=False, default=ROLE_CANDIDATE)
     is_active_account = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=utcnow)
@@ -79,6 +80,9 @@ class User(UserMixin, db.Model):
         self.password_hash = generate_password_hash(raw_password)
 
     def check_password(self, raw_password):
+        if not self.password_hash:
+            # Google-only account — password login not allowed
+            return False
         return check_password_hash(self.password_hash, raw_password)
 
     @property
@@ -91,7 +95,13 @@ class User(UserMixin, db.Model):
         logins with the old password. Derived from password_hash instead of
         a separate counter/column so this needs no schema change and can
         never drift out of sync with the actual password.
+
+        For Google-only accounts (password_hash is None) we use the fixed
+        stamp "oauth" — their sessions are invalidated when the admin
+        disables their account (load_user checks is_active_account).
         """
+        if not self.password_hash:
+            return "oauth"
         return hashlib.sha256(self.password_hash.encode()).hexdigest()[:16]
 
     def get_id(self):
