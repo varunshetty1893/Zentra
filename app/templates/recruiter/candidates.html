@@ -1,121 +1,132 @@
 {% extends "base.html" %}
-{% block title %}Zentra — Candidate Database & Intelligence{% endblock %}
+{% block title %}Zentra — Talent Intelligence{% endblock %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-6 lg:px-10 py-10">
-  
-  <!-- Header -->
+
+  <!-- ── Page Header ── -->
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-8 border-b border-slate-100">
     <div>
-      <h1 class="text-3xl font-extrabold tracking-tight text-ink">Candidate Database</h1>
-      <p class="text-sm text-slate-500 mt-1">Discover, evaluate, and source talent with real-time skills and AI candidate intelligence.</p>
+      <h1 class="text-3xl font-extrabold tracking-tight text-ink">Talent Intelligence</h1>
+      <p class="text-sm text-slate-500 mt-1">Discover, evaluate, and source top talent with real-time AI-powered candidate insights.</p>
     </div>
-    <div class="flex items-center gap-3">
-      <a href="{{ url_for('recruiter.pipeline') }}" class="text-sm font-semibold border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-center gap-1.5">
-        <i class="bi bi-kanban"></i>Hiring Pipeline
-      </a>
+    <div class="flex items-center gap-2">
+      <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+        <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+        {{ total_candidates }} Qualified Applicant{{ 's' if total_candidates != 1 else '' }}
+      </span>
     </div>
   </div>
 
-  <!-- Search and Filter Bar -->
-  <form method="GET" action="{{ url_for('recruiter.candidates') }}" class="bg-white border border-slate-200 rounded-2xl p-5 mt-8 shadow-sm">
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      
+  <!-- ── Search & Filter Bar (all in one row) ── -->
+  <form method="GET" action="{{ url_for('recruiter.candidates') }}"
+        class="bg-white border border-slate-200 rounded-2xl p-5 mt-8 shadow-sm">
+    <div class="flex flex-wrap lg:flex-nowrap items-end gap-3">
+
       <!-- Keyword search -->
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Keyword / Name</label>
+      <div class="flex-1 min-w-[160px]">
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Search</label>
         <div class="relative">
           <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
-          <input type="text" name="q" value="{{ q }}" placeholder="Search candidate, role, title..." 
+          <input type="text" name="q" value="{{ q }}" placeholder="Name, role, title…"
                  class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"/>
         </div>
       </div>
 
       <!-- Skill filter -->
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Skills</label>
+      <div class="flex-1 min-w-[150px]">
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Technical Skills</label>
         <div class="relative">
           <i class="bi bi-code-slash absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400"></i>
-          <input type="text" name="skill" value="{{ skill_filter }}" placeholder="e.g. Python, React, AWS..." 
+          <input type="text" name="skill" value="{{ skill_filter }}" placeholder="Python, React, AWS…"
                  class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl pl-8 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all"/>
         </div>
       </div>
 
       <!-- Experience filter -->
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Experience Level</label>
-        <select name="experience" class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
-          <option value="">All Experience Levels</option>
-          <option value="entry" {{ 'selected' if exp_filter == 'entry' else '' }}>Entry Level (0-2 yrs)</option>
-          <option value="mid" {{ 'selected' if exp_filter == 'mid' else '' }}>Mid Level (2-5 yrs)</option>
-          <option value="senior" {{ 'selected' if exp_filter == 'senior' else '' }}>Senior (5+ yrs)</option>
-          <option value="lead" {{ 'selected' if exp_filter == 'lead' else '' }}>Lead / Executive</option>
+      <div class="flex-1 min-w-[150px]">
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Seniority</label>
+        <select name="experience"
+                class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+          <option value="">All Levels</option>
+          <option value="entry"  {{ 'selected' if exp_filter == 'entry'  }}>Entry (0-2 yrs)</option>
+          <option value="mid"    {{ 'selected' if exp_filter == 'mid'    }}>Mid-Level (2-5 yrs)</option>
+          <option value="senior" {{ 'selected' if exp_filter == 'senior' }}>Senior (5+ yrs)</option>
+          <option value="lead"   {{ 'selected' if exp_filter == 'lead'   }}>Lead / Executive</option>
         </select>
       </div>
 
       <!-- Match Score filter -->
-      <div>
-        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Min AI Match Score</label>
-        <select name="score" class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
-          <option value="">Any Match Score</option>
-          <option value="85" {{ 'selected' if min_score == '85' else '' }}>85%+ Match (Top Tier)</option>
-          <option value="75" {{ 'selected' if min_score == '75' else '' }}>75%+ Match (High Fit)</option>
-          <option value="60" {{ 'selected' if min_score == '60' else '' }}>60%+ Match (Moderate Fit)</option>
+      <div class="flex-1 min-w-[150px]">
+        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Min. AI Match</label>
+        <select name="score"
+                class="w-full bg-slate-50 border border-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all">
+          <option value="">Any Score</option>
+          <option value="85" {{ 'selected' if min_score == '85' }}>85%+ — Top Tier</option>
+          <option value="75" {{ 'selected' if min_score == '75' }}>75%+ — High Fit</option>
+          <option value="60" {{ 'selected' if min_score == '60' }}>60%+ — Moderate Fit</option>
         </select>
       </div>
 
-    </div>
-
-    <div class="flex items-center justify-between gap-4 mt-4 pt-4 border-t border-slate-100">
-      <p class="text-xs text-slate-400">Found <strong class="text-ink">{{ total_candidates }}</strong> {{ 'candidate' if total_candidates == 1 else 'candidates' }} who applied to your jobs</p>
-      <div class="flex items-center gap-2">
+      <!-- Actions – same row -->
+      <div class="flex items-center gap-2 shrink-0">
         {% if q or skill_filter or exp_filter or min_score %}
-        <a href="{{ url_for('recruiter.candidates') }}" class="text-xs font-semibold text-slate-500 hover:text-ink px-3 py-2">Clear Filters</a>
+        <a href="{{ url_for('recruiter.candidates') }}"
+           class="text-xs font-semibold text-slate-500 hover:text-ink px-3 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors whitespace-nowrap">
+          Clear
+        </a>
         {% endif %}
-        <button type="submit" class="text-xs font-semibold bg-ink text-white px-4 py-2 rounded-xl hover:bg-slate-800 transition-colors">
+        <button type="submit"
+                class="text-xs font-semibold bg-ink text-white px-5 py-2.5 rounded-xl hover:bg-slate-800 transition-colors whitespace-nowrap">
           Apply Filters
         </button>
       </div>
     </div>
   </form>
 
-  <!-- Candidate Cards Grid -->
+  <!-- ── Applicant Cards Grid ── -->
   <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
     {% if not candidates %}
     <div class="col-span-full bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-person-x text-2xl"></i>
       </div>
-      <h3 class="font-bold text-ink text-base">No candidates found</h3>
-      <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Try broadening your search query or removing skills/score filters.</p>
+      <h3 class="font-bold text-ink text-base">No applicants found</h3>
+      <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">Try broadening your search or removing filters.</p>
     </div>
     {% else %}
     {% for cand in candidates %}
-    <div class="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow flex flex-col justify-between">
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between group">
       <div>
+        <!-- Card Header -->
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-2xl bg-lavender text-indigo-700 font-bold text-base flex items-center justify-center shrink-0">
               {{ cand.user.full_name[:1]|upper }}
             </div>
             <div>
-              <h3 class="font-bold text-ink text-sm hover:text-indigo-600 transition-colors">
+              <h3 class="font-bold text-ink text-sm group-hover:text-indigo-600 transition-colors">
                 <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=cand.user.id) }}">{{ cand.user.full_name }}</a>
               </h3>
               <p class="text-xs text-slate-400 truncate max-w-[170px]">{{ cand.user.headline or 'Professional' }}</p>
             </div>
           </div>
           {% if cand.best_match_score %}
-          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if cand.best_match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
+          <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0
+            {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if cand.best_match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
             <i class="bi bi-stars"></i>{{ cand.best_match_score|round|int }}%
           </span>
           {% endif %}
         </div>
 
-        <div class="flex items-center gap-3 text-xs text-slate-400 mt-3.5">
-          <span><i class="bi bi-geo-alt mr-1"></i>{{ cand.user.location or 'Global / Remote' }}</span>
+        <!-- Meta -->
+        <div class="flex items-center gap-3 text-xs text-slate-400 mt-3.5 flex-wrap">
+          <span><i class="bi bi-geo-alt mr-1"></i>{{ cand.user.location or 'Remote / Global' }}</span>
           {% if cand.user.experience_level %}
           <span><i class="bi bi-briefcase mr-1"></i>{{ cand.user.experience_level|capitalize }}</span>
+          {% endif %}
+          {% if cand.applications %}
+          <span class="text-indigo-500 font-semibold"><i class="bi bi-layers mr-1"></i>{{ cand.applications|length }} application{{ 's' if cand.applications|length != 1 }}</span>
           {% endif %}
         </div>
 
@@ -128,9 +139,9 @@
         </div>
         {% endif %}
 
-        <!-- Skills list -->
+        <!-- Skills -->
         <div class="mt-4">
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Verified Skills</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Core Skills</p>
           <div class="flex items-center gap-1.5 flex-wrap">
             {% if cand.skills %}
               {% for skill in cand.skills %}
@@ -143,22 +154,29 @@
         </div>
       </div>
 
-      <!-- Footer action -->
+      <!-- Card Footer -->
       <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
-        <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=cand.user.id) }}" class="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
+        <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=cand.user.id) }}"
+           class="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
           <i class="bi bi-stars"></i>Full Intelligence →
         </a>
-        <button type="button" 
-                data-name="{{ cand.user.full_name|e }}" 
-                data-headline="{{ (cand.user.headline or 'Candidate')|e }}" 
-                data-email="{{ cand.user.email|e }}" 
-                data-location="{{ (cand.user.location or 'Remote')|e }}" 
-                data-skills="{{ (cand.all_skills|join(', '))|e }}" 
-                data-bio="{{ (cand.user.bio or '')|e }}" 
+        <button type="button"
+                data-name="{{ cand.user.full_name|e }}"
+                data-headline="{{ (cand.user.headline or 'Professional')|e }}"
+                data-email="{{ cand.user.email|e }}"
+                data-location="{{ (cand.user.location or 'Remote / Global')|e }}"
+                data-skills="{{ (cand.all_skills|join(','))|e }}"
+                data-bio="{{ (cand.user.bio or '')|e }}"
                 data-score="{{ cand.best_match_score or '' }}"
-                onclick="openCandidateDrawerFromBtn(this)" 
-                class="text-xs font-semibold text-slate-500 hover:text-slate-800 p-1">
-          Quick View
+                data-exp="{{ (cand.user.experience_level or '')|capitalize }}"
+                data-jobs="{{ (cand.applied_job_titles|join('; '))|e }}"
+                data-apps="{{ cand.applications|length }}"
+                data-status="{{ (cand.primary_app.status if cand.primary_app else '')|e }}"
+                data-applied="{{ cand.primary_app.applied_at.strftime('%b %d, %Y') if cand.primary_app else '' }}"
+                data-candidate-id="{{ cand.user.id }}"
+                onclick="openProfilePanel(this)"
+                class="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-colors">
+          Profile Preview
         </button>
       </div>
     </div>
@@ -166,120 +184,421 @@
     {% endif %}
   </div>
 
-  <!-- Pagination -->
+  <!-- ── Pagination ── -->
   {% if candidates and total_pages > 1 %}
   <div class="flex items-center justify-center gap-2 mt-8">
     {% set qs = {'q': q, 'skill': skill_filter, 'experience': exp_filter, 'score': min_score} %}
     <a href="{{ url_for('recruiter.candidates', page=page-1, **qs) if page > 1 else '#' }}"
-       class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200 {{ 'text-slate-300 pointer-events-none' if page <= 1 else 'text-slate-600 hover:bg-slate-50' }}">
+       class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200
+              {{ 'text-slate-300 pointer-events-none' if page <= 1 else 'text-slate-600 hover:bg-slate-50' }}">
       <i class="bi bi-arrow-left"></i> Prev
     </a>
     <span class="text-xs font-semibold text-slate-500 px-2">Page {{ page }} of {{ total_pages }}</span>
     <a href="{{ url_for('recruiter.candidates', page=page+1, **qs) if page < total_pages else '#' }}"
-       class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200 {{ 'text-slate-300 pointer-events-none' if page >= total_pages else 'text-slate-600 hover:bg-slate-50' }}">
+       class="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200
+              {{ 'text-slate-300 pointer-events-none' if page >= total_pages else 'text-slate-600 hover:bg-slate-50' }}">
       Next <i class="bi bi-arrow-right"></i>
     </a>
   </div>
   {% endif %}
 
-  <!-- Candidate Intelligence Modal / Drawer -->
-  <div id="candidate-drawer" class="hidden fixed inset-0 z-50 overflow-hidden">
-    <div class="absolute inset-0 bg-ink/40 backdrop-blur-sm transition-opacity" onclick="closeCandidateDrawer()"></div>
-    <div class="fixed inset-y-0 right-0 max-w-md w-full bg-white shadow-2xl p-6 overflow-y-auto flex flex-col justify-between">
-      <div>
-        <div class="flex items-center justify-between pb-4 border-b border-slate-100">
-          <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
-            <i class="bi bi-stars"></i>Candidate Intelligence
-          </div>
-          <button type="button" onclick="closeCandidateDrawer()" class="text-slate-400 hover:text-ink p-1 rounded-lg">
-            <i class="bi bi-x-lg"></i>
-          </button>
-        </div>
-
-        <div class="mt-6">
-          <div class="flex items-center gap-3">
-            <div id="drawer-avatar" class="w-12 h-12 rounded-2xl bg-lavender text-indigo-700 font-bold text-lg flex items-center justify-center shrink-0">C</div>
-            <div>
-              <h2 id="drawer-name" class="text-lg font-bold text-ink">Candidate Name</h2>
-              <p id="drawer-headline" class="text-xs text-slate-500">Candidate Headline</p>
-            </div>
-          </div>
-
-          <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100 text-xs space-y-2">
-            <p><strong class="text-slate-600">Email:</strong> <span id="drawer-email" class="text-slate-800"></span></p>
-            <p><strong class="text-slate-600">Location:</strong> <span id="drawer-location" class="text-slate-800"></span></p>
-            <p id="drawer-match-wrapper"><strong class="text-slate-600">AI Match Assessment:</strong> <span id="drawer-match" class="font-bold text-emerald-700"></span></p>
-          </div>
-
-          <div class="mt-6">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Skills Breakdown</h3>
-            <div id="drawer-skills" class="flex items-center gap-1.5 flex-wrap"></div>
-          </div>
-
-          <div class="mt-6">
-            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">About & Background</h3>
-            <p id="drawer-bio" class="text-xs text-slate-600 leading-relaxed italic bg-slate-50 p-4 rounded-xl border border-slate-100">
-              No summary provided.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="pt-6 border-t border-slate-100 flex items-center gap-3">
-        <a href="{{ url_for('recruiter.pipeline') }}" class="flex-1 text-center text-xs font-semibold bg-ink text-white py-2.5 rounded-xl hover:bg-slate-800 transition-colors">
-          View In Hiring Pipeline
-        </a>
-      </div>
-    </div>
-  </div>
-
 </div>
 
+<!-- ════════════════════════════════════════════════════
+     TABBED PROFILE PANEL (side drawer)
+     ════════════════════════════════════════════════════ -->
+<div id="profile-panel" class="hidden fixed inset-0 z-50 overflow-hidden">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeProfilePanel()"></div>
+
+  <!-- Drawer -->
+  <div id="profile-panel-drawer"
+       class="fixed inset-y-0 right-0 w-full max-w-lg bg-white shadow-2xl flex flex-col
+              translate-x-full transition-transform duration-300 ease-out">
+
+    <!-- Drawer Header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+      <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-600">
+        <i class="bi bi-person-badge"></i>
+        Applicant Profile
+      </div>
+      <button type="button" onclick="closeProfilePanel()"
+              class="text-slate-400 hover:text-ink p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <!-- Identity Strip -->
+    <div class="px-6 py-5 border-b border-slate-100 shrink-0 bg-gradient-to-r from-indigo-50/60 to-violet-50/40">
+      <div class="flex items-center gap-4">
+        <div id="panel-avatar"
+             class="w-14 h-14 rounded-2xl bg-lavender text-indigo-700 font-extrabold text-xl flex items-center justify-center shrink-0">
+          C
+        </div>
+        <div class="min-w-0">
+          <h2 id="panel-name" class="text-lg font-extrabold text-ink truncate">Candidate Name</h2>
+          <p id="panel-headline" class="text-xs text-slate-500 truncate mt-0.5">Professional</p>
+          <div class="flex items-center gap-3 mt-2 flex-wrap">
+            <span id="panel-location" class="text-[11px] text-slate-500 inline-flex items-center gap-1">
+              <i class="bi bi-geo-alt"></i>—
+            </span>
+            <span id="panel-exp-badge"
+                  class="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 hidden">
+            </span>
+            <span id="panel-score-badge"
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold hidden">
+              <i class="bi bi-stars"></i><span id="panel-score-val"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-slate-200 shrink-0 bg-white px-6 pt-4">
+      <button class="profile-tab active-tab" data-tab="overview" onclick="switchTab(this,'overview')">
+        <i class="bi bi-person-lines-fill mr-1.5"></i>Overview
+      </button>
+      <button class="profile-tab" data-tab="skills" onclick="switchTab(this,'skills')">
+        <i class="bi bi-code-slash mr-1.5"></i>Skills
+      </button>
+      <button class="profile-tab" data-tab="applications" onclick="switchTab(this,'applications')">
+        <i class="bi bi-send mr-1.5"></i>Applications
+      </button>
+    </div>
+
+    <!-- Tab Content (scrollable) -->
+    <div class="flex-1 overflow-y-auto">
+
+      <!-- ── TAB: Overview ── -->
+      <div id="tab-overview" class="tab-content p-6 space-y-5">
+
+        <!-- Contact Details -->
+        <div>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Contact Details</p>
+          <div class="bg-slate-50 rounded-xl border border-slate-100 divide-y divide-slate-100">
+            <div class="flex items-center gap-3 px-4 py-3">
+              <i class="bi bi-envelope text-indigo-500 text-sm w-4"></i>
+              <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Email</p>
+                <p id="panel-email" class="text-xs text-slate-800 font-medium">—</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3 px-4 py-3">
+              <i class="bi bi-geo-alt text-indigo-500 text-sm w-4"></i>
+              <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Location</p>
+                <p id="panel-location-detail" class="text-xs text-slate-800 font-medium">—</p>
+              </div>
+            </div>
+            <div id="panel-status-row" class="flex items-center gap-3 px-4 py-3 hidden">
+              <i class="bi bi-flag text-indigo-500 text-sm w-4"></i>
+              <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Pipeline Status</p>
+                <span id="panel-status-badge" class="text-xs font-bold px-2 py-0.5 rounded-full">—</span>
+              </div>
+            </div>
+            <div id="panel-applied-row" class="flex items-center gap-3 px-4 py-3 hidden">
+              <i class="bi bi-calendar3 text-indigo-500 text-sm w-4"></i>
+              <div>
+                <p class="text-[10px] text-slate-400 font-semibold uppercase">Application Date</p>
+                <p id="panel-applied" class="text-xs text-slate-800 font-medium">—</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Match Score -->
+        <div id="panel-score-section" class="hidden">
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">AI Suitability Assessment</p>
+          <div class="bg-white border border-slate-200 rounded-xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs text-slate-600 font-semibold">Overall Match Score</span>
+              <span id="panel-score-text" class="text-sm font-extrabold text-emerald-700">—</span>
+            </div>
+            <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div id="panel-score-bar" class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-500 transition-all duration-700" style="width:0%"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-2">Scored by Zentra AI against applied role requirements.</p>
+          </div>
+        </div>
+
+        <!-- Professional Summary -->
+        <div>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Professional Summary</p>
+          <p id="panel-bio"
+             class="text-xs text-slate-600 leading-relaxed bg-slate-50 border border-slate-100 rounded-xl p-4 italic">
+            No summary provided.
+          </p>
+        </div>
+      </div>
+
+      <!-- ── TAB: Skills ── -->
+      <div id="tab-skills" class="tab-content hidden p-6 space-y-5">
+        <div>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Verified Technical Skills</p>
+          <div id="panel-skills-grid" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div id="panel-skills-empty" class="hidden text-center py-10">
+          <i class="bi bi-code-slash text-3xl text-slate-200"></i>
+          <p class="text-xs text-slate-400 mt-2">No skills have been listed yet.</p>
+        </div>
+
+        <!-- Skill count summary -->
+        <div id="panel-skill-count-wrap" class="hidden">
+          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-center gap-3">
+            <i class="bi bi-award text-indigo-600 text-lg"></i>
+            <div>
+              <p id="panel-skill-count" class="text-sm font-extrabold text-indigo-700">0 Skills</p>
+              <p class="text-[10px] text-indigo-500">Declared on applicant profile</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── TAB: Applications ── -->
+      <div id="tab-applications" class="tab-content hidden p-6 space-y-4">
+        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Roles Applied For</p>
+        <div id="panel-jobs-list" class="space-y-3"></div>
+        <div id="panel-jobs-empty" class="hidden text-center py-10">
+          <i class="bi bi-send text-3xl text-slate-200"></i>
+          <p class="text-xs text-slate-400 mt-2">No applications on record.</p>
+        </div>
+        <div id="panel-app-count-wrap" class="hidden">
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+            <i class="bi bi-layers text-slate-500 text-lg"></i>
+            <div>
+              <p id="panel-app-count" class="text-sm font-extrabold text-slate-700">0 Applications</p>
+              <p class="text-[10px] text-slate-500">Submitted to your active postings</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /scrollable -->
+
+    <!-- Drawer Footer CTA -->
+    <div class="px-6 py-4 border-t border-slate-100 shrink-0 flex items-center gap-3">
+      <a id="panel-full-link" href="#"
+         class="flex-1 text-center text-xs font-extrabold bg-ink text-white py-2.5 rounded-xl hover:bg-slate-800 transition-colors inline-flex items-center justify-center gap-1.5">
+        <i class="bi bi-stars"></i>Full Intelligence Report
+      </a>
+      <a href="{{ url_for('recruiter.pipeline') }}"
+         class="text-xs font-semibold border border-slate-200 text-slate-600 py-2.5 px-4 rounded-xl hover:bg-slate-50 transition-colors">
+        Pipeline →
+      </a>
+    </div>
+  </div><!-- /drawer -->
+</div>
+
+<!-- ── Inline Styles for Tabs ── -->
+<style>
+  .profile-tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+    cursor: pointer;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+  }
+  .profile-tab:hover { color: #1e293b; }
+  .profile-tab.active-tab {
+    color: #4f46e5;
+    border-bottom-color: #4f46e5;
+    font-weight: 700;
+  }
+</style>
+
 <script>
-function openCandidateDrawerFromBtn(btn) {
-  const name = btn.getAttribute('data-name');
-  const headline = btn.getAttribute('data-headline');
-  const email = btn.getAttribute('data-email');
-  const location = btn.getAttribute('data-location');
-  const skills = btn.getAttribute('data-skills');
-  const bio = btn.getAttribute('data-bio');
-  const matchScore = btn.getAttribute('data-score');
-  openCandidateDrawer(name, headline, email, location, skills, bio, matchScore);
-}
+/* ── Panel open/close ── */
+function openProfilePanel(btn) {
+  const d = {
+    name:     btn.dataset.name,
+    headline: btn.dataset.headline,
+    email:    btn.dataset.email,
+    location: btn.dataset.location,
+    skills:   btn.dataset.skills,
+    bio:      btn.dataset.bio,
+    score:    btn.dataset.score,
+    exp:      btn.dataset.exp,
+    jobs:     btn.dataset.jobs,
+    apps:     parseInt(btn.dataset.apps || '0'),
+    status:   btn.dataset.status,
+    applied:  btn.dataset.applied,
+    cid:      btn.dataset.candidateId,
+  };
 
-function openCandidateDrawer(name, headline, email, location, skills, bio, matchScore) {
-  document.getElementById('drawer-name').textContent = name;
-  document.getElementById('drawer-headline').textContent = headline || 'Candidate';
-  document.getElementById('drawer-email').textContent = email;
-  document.getElementById('drawer-location').textContent = location;
-  document.getElementById('drawer-avatar').textContent = name.charAt(0).toUpperCase();
-  document.getElementById('drawer-bio').textContent = bio || 'Candidate profile details verified on Zentra.';
-  
-  if (matchScore) {
-    document.getElementById('drawer-match').textContent = Math.round(parseFloat(matchScore)) + '% Overall Match';
-    document.getElementById('drawer-match-wrapper').classList.remove('hidden');
+  // Identity strip
+  document.getElementById('panel-avatar').textContent   = d.name.charAt(0).toUpperCase();
+  document.getElementById('panel-name').textContent     = d.name;
+  document.getElementById('panel-headline').textContent = d.headline || 'Professional';
+  document.getElementById('panel-location').innerHTML   = `<i class="bi bi-geo-alt"></i> ${d.location || '—'}`;
+
+  // Exp badge
+  const expBadge = document.getElementById('panel-exp-badge');
+  if (d.exp) { expBadge.textContent = d.exp + ' Level'; expBadge.classList.remove('hidden'); }
+  else { expBadge.classList.add('hidden'); }
+
+  // Score badge (strip)
+  const scoreBadge = document.getElementById('panel-score-badge');
+  const scoreVal   = document.getElementById('panel-score-val');
+  if (d.score) {
+    const sc = Math.round(parseFloat(d.score));
+    scoreVal.textContent = sc + '% Match';
+    scoreBadge.className = sc >= 80
+      ? 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200'
+      : 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200';
+    scoreBadge.innerHTML = `<i class="bi bi-stars"></i><span id="panel-score-val">${sc}% Match</span>`;
+    scoreBadge.classList.remove('hidden');
   } else {
-    document.getElementById('drawer-match-wrapper').classList.add('hidden');
+    scoreBadge.classList.add('hidden');
   }
 
-  const skillsContainer = document.getElementById('drawer-skills');
-  skillsContainer.innerHTML = '';
-  if (skills) {
-    skills.split(',').forEach(function(s) {
-      if (s.trim()) {
-        const chip = document.createElement('span');
-        chip.className = 'text-[11px] font-medium px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700';
-        chip.textContent = s.trim();
-        skillsContainer.appendChild(chip);
-      }
+  // ── Overview tab ──
+  document.getElementById('panel-email').textContent           = d.email || '—';
+  document.getElementById('panel-location-detail').textContent = d.location || '—';
+
+  // Status row
+  const statusRow = document.getElementById('panel-status-row');
+  const statusBadge = document.getElementById('panel-status-badge');
+  if (d.status) {
+    const statusMap = {
+      applied: 'bg-blue-50 text-blue-700',
+      under_review: 'bg-violet-50 text-violet-700',
+      shortlisted: 'bg-amber-50 text-amber-700',
+      interview: 'bg-orange-50 text-orange-700',
+      hired: 'bg-emerald-50 text-emerald-700',
+      rejected: 'bg-rose-50 text-rose-700',
+    };
+    const cls = statusMap[d.status] || 'bg-slate-100 text-slate-600';
+    statusBadge.className = `text-xs font-bold px-2.5 py-0.5 rounded-full ${cls}`;
+    statusBadge.textContent = d.status.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    statusRow.classList.remove('hidden');
+  } else { statusRow.classList.add('hidden'); }
+
+  // Applied date row
+  const appliedRow = document.getElementById('panel-applied-row');
+  if (d.applied) {
+    document.getElementById('panel-applied').textContent = d.applied;
+    appliedRow.classList.remove('hidden');
+  } else { appliedRow.classList.add('hidden'); }
+
+  // Score section (overview)
+  const scoreSection = document.getElementById('panel-score-section');
+  if (d.score) {
+    const sc = Math.round(parseFloat(d.score));
+    document.getElementById('panel-score-text').textContent = sc + '% Match';
+    document.getElementById('panel-score-bar').style.width = sc + '%';
+    scoreSection.classList.remove('hidden');
+  } else { scoreSection.classList.add('hidden'); }
+
+  // Bio
+  document.getElementById('panel-bio').textContent = d.bio || 'No professional summary has been provided by this applicant.';
+
+  // ── Skills tab ──
+  const skillsGrid = document.getElementById('panel-skills-grid');
+  const skillsEmpty = document.getElementById('panel-skills-empty');
+  const skillCountWrap = document.getElementById('panel-skill-count-wrap');
+  skillsGrid.innerHTML = '';
+  const skillsList = d.skills ? d.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+  if (skillsList.length) {
+    skillsList.forEach(function(s) {
+      const chip = document.createElement('span');
+      chip.className = 'text-xs font-semibold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors';
+      chip.textContent = s;
+      skillsGrid.appendChild(chip);
     });
+    skillsEmpty.classList.add('hidden');
+    skillCountWrap.classList.remove('hidden');
+    document.getElementById('panel-skill-count').textContent = skillsList.length + ' Skill' + (skillsList.length !== 1 ? 's' : '');
+  } else {
+    skillsEmpty.classList.remove('hidden');
+    skillCountWrap.classList.add('hidden');
   }
 
-  document.getElementById('candidate-drawer').classList.remove('hidden');
+  // ── Applications tab ──
+  const jobsList = document.getElementById('panel-jobs-list');
+  const jobsEmpty = document.getElementById('panel-jobs-empty');
+  const appCountWrap = document.getElementById('panel-app-count-wrap');
+  jobsList.innerHTML = '';
+  const jobTitles = d.jobs ? d.jobs.split(';').map(s => s.trim()).filter(Boolean) : [];
+  if (jobTitles.length) {
+    jobTitles.forEach(function(title, i) {
+      const el = document.createElement('div');
+      el.className = 'flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl';
+      el.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 text-sm font-bold">${i+1}</div>
+        <div>
+          <p class="text-xs font-bold text-ink">${title}</p>
+          <p class="text-[10px] text-slate-400">Active application</p>
+        </div>
+      `;
+      jobsList.appendChild(el);
+    });
+    jobsEmpty.classList.add('hidden');
+    appCountWrap.classList.remove('hidden');
+    document.getElementById('panel-app-count').textContent = d.apps + ' Application' + (d.apps !== 1 ? 's' : '');
+  } else {
+    jobsEmpty.classList.remove('hidden');
+    appCountWrap.classList.add('hidden');
+  }
+
+  // Full intelligence link
+  document.getElementById('panel-full-link').href = `/recruiter/candidates/${d.cid}/intelligence`;
+
+  // Reset to Overview tab
+  switchTabById('overview');
+
+  // Show panel with animation
+  document.getElementById('profile-panel').classList.remove('hidden');
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      document.getElementById('profile-panel-drawer').classList.remove('translate-x-full');
+    });
+  });
 }
 
-function closeCandidateDrawer() {
-  document.getElementById('candidate-drawer').classList.add('hidden');
+function closeProfilePanel() {
+  document.getElementById('profile-panel-drawer').classList.add('translate-x-full');
+  setTimeout(function() {
+    document.getElementById('profile-panel').classList.add('hidden');
+  }, 300);
 }
+
+/* ── Tab switching ── */
+function switchTab(btn, tabId) {
+  document.querySelectorAll('.profile-tab').forEach(function(t) { t.classList.remove('active-tab'); });
+  btn.classList.add('active-tab');
+  switchTabById(tabId);
+}
+
+function switchTabById(tabId) {
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.add('hidden'); });
+  const target = document.getElementById('tab-' + tabId);
+  if (target) target.classList.remove('hidden');
+  // Sync button state
+  document.querySelectorAll('.profile-tab').forEach(function(t) {
+    if (t.dataset.tab === tabId) t.classList.add('active-tab');
+    else t.classList.remove('active-tab');
+  });
+}
+
+/* Escape key closes panel */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeProfilePanel();
+});
+
+/* Legacy support – kept for any existing callers */
+function openCandidateDrawerFromBtn(btn) { openProfilePanel(btn); }
 </script>
 {% endblock %}

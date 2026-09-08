@@ -7,23 +7,47 @@
   <p class="text-sm text-slate-400 mb-8">Last updated: {{ now.strftime('%B %Y') if now else '' }}</p>
 
   <div class="space-y-6 text-sm text-slate-600 leading-relaxed">
-    <p>This is a placeholder policy for the platform's current build stage — replace it with your finalised privacy policy before taking real users.</p>
+    <p>This Privacy Policy explains what information Zentra (the "Platform") collects, how it is used, and the choices you have. By using the Platform, you agree to the practices described here.</p>
 
     <div>
-      <h2 class="font-semibold text-ink mb-1">What we collect</h2>
-      <p>Account details (name, email, password hash), resume content you upload or paste, and job application activity (which jobs you applied to, and your match scores).</p>
+      <h2 class="font-semibold text-ink mb-1">1. Information we collect</h2>
+      <p>Account details (name, email address, password — stored as a secure hash, never in plain text); resume content and career history you upload, paste, or build in the Platform; job applications, saved jobs, and match/ATS scores generated from your activity; recruiter and company details for Recruiter accounts; and support tickets and messages you send us. We also process standard technical data (such as session identifiers) needed to keep you securely signed in.</p>
     </div>
     <div>
-      <h2 class="font-semibold text-ink mb-1">How it's used</h2>
-      <p>Your resume and profile data are used to compute ATS scores and job matches, and are shared with a recruiter only when you apply to their listing.</p>
+      <h2 class="font-semibold text-ink mb-1">2. How we use your information</h2>
+      <p>To operate core features — computing ATS compatibility scores, generating job recommendations, and matching candidates with job listings; to route applications to the relevant recruiter; to power notifications about your account and application activity; to review and verify recruiter accounts before their listings go live; and to respond to support requests.</p>
     </div>
     <div>
-      <h2 class="font-semibold text-ink mb-1">Data you control</h2>
-      <p>You can update your profile at any time from Settings. Contact support to request deletion of your account and associated data.</p>
+      <h2 class="font-semibold text-ink mb-1">3. How information is shared</h2>
+      <p>We do not sell your personal information. Your resume and application details are shared with a recruiter only when you apply to their job listing. If you enable a public profile, the information you choose to display — and your resume, if you separately opt in — becomes visible to anyone with your profile link, until you turn that setting off. Resume text is scored and matched using the Platform's own matching logic; it is not sent to third-party AI or data-broker services.</p>
     </div>
     <div>
-      <h2 class="font-semibold text-ink mb-1">Third parties</h2>
-      <p>We don't sell your data. Resume text is processed locally by Zentra's own matching engine — it isn't sent to third-party services.</p>
+      <h2 class="font-semibold text-ink mb-1">4. Cookies &amp; sessions</h2>
+      <p>We use a session cookie to keep you signed in and to protect the Platform against cross-site request forgery. We do not use third-party advertising or tracking cookies.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">5. Data retention &amp; deletion</h2>
+      <p>We retain your information for as long as your account is active, or as needed to provide the Platform's features. You can update or remove profile and resume content at any time from your account settings, and you can request full deletion of your account and associated data through the Help &amp; Support centre.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">6. Your choices &amp; controls</h2>
+      <p>From your privacy settings, you can turn your public profile on or off, control whether your resume is shown publicly, manage which resume is used for matching, and manage notification preferences. These controls are yours to change at any time.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">7. Security</h2>
+      <p>We apply reasonable technical and administrative safeguards to protect your information, including password hashing and access controls that restrict data to authorised roles. No method of storage or transmission is completely secure, and we cannot guarantee absolute security.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">8. Children's privacy</h2>
+      <p>The Platform is intended for use by job seekers and employers of working age and is not directed at children. We do not knowingly collect information from children.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">9. Changes to this policy</h2>
+      <p>We may update this Privacy Policy as the Platform evolves. Material changes will be reflected by updating the "Last updated" date above.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">10. Contact</h2>
+      <p>For privacy questions or data requests, reach us through the <a href="{{ url_for('main.support') }}" class="text-indigo-600 hover:underline">Help &amp; Support</a> centre.</p>
     </div>
   </div>
 </div>

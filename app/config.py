@@ -17,8 +17,14 @@ class Config:
         _raw_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_DATABASE_URI = _raw_db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # connect_timeout: without this, a request that needs the DB hangs
+    # forever (no error, no response) if the database host is
+    # unreachable — a slow-death outage instead of a fast, visible
+    # failure. Only applies to Postgres; psycopg2 accepts it, SQLite
+    # has no such connection-establishment phase to time out.
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
+        "connect_args": {"connect_timeout": 5} if _raw_db_url.startswith("postgresql://") else {},
     }
 
 
@@ -89,6 +95,7 @@ class ProductionConfig(Config):
         "pool_recycle": 300,
         "pool_size": int(os.environ.get("DB_POOL_SIZE", 5)),
         "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", 2)),
+        "connect_args": {"connect_timeout": 5} if Config._raw_db_url.startswith("postgresql://") else {},
     }
 
     def __init__(self):

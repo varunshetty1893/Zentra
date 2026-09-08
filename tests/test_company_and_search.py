@@ -4,6 +4,14 @@ from app.models.job import Job
 from app.models.recruiter_profile import RecruiterProfile
 from app.models.user import User
 
+# Same situation as test_seed_microsoft.py: create_app() here loads the
+# real DATABASE_URL and depends on seed_microsoft.py having already run
+# against it (12 real "Microsoft" jobs). Marked requires_seed_data and
+# excluded from the default run for the same reason — see that file's
+# comment and pyproject.toml addopts.
+pytestmark = pytest.mark.requires_seed_data
+
+
 @pytest.fixture
 def test_client():
     app = create_app()

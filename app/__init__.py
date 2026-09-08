@@ -175,4 +175,31 @@ def create_app(config_name=None):
             return jsonify({"status": "error", "error": "Internal Server Error", "message": "An unexpected error occurred. No diagnostic details leaked."}), 500
         return render_template("errors/500.html"), 500
 
+    # --- Security response headers (applied to every response) ---
+    # Clickjacking / MIME-sniffing / referrer / permissions hardening.
+    # CSP allows the CDN origins the templates already load from
+    # (Tailwind CDN, Google Fonts, jsDelivr for Bootstrap Icons) plus
+    # 'unsafe-inline' for the small inline Tailwind config script and
+    # inline styles used throughout the templates. HSTS is only sent
+    # over HTTPS (production), since it has no effect over plain HTTP
+    # and shouldn't be sent during local http:// development.
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+            "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "frame-ancestors 'none'"
+        )
+        if request.is_secure:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
     return app

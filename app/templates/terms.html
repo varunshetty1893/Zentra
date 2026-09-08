@@ -7,23 +7,47 @@
   <p class="text-sm text-slate-400 mb-8">Last updated: {{ now.strftime('%B %Y') if now else '' }}</p>
 
   <div class="space-y-6 text-sm text-slate-600 leading-relaxed">
-    <p>By creating an account or using Zentra, you agree to the terms below. This is a placeholder policy for the platform's current build stage — replace it with your finalised legal terms before taking real users.</p>
+    <p>These Terms &amp; Conditions ("Terms") govern access to and use of Zentra (the "Platform"). By creating an account or otherwise using the Platform, you agree to be bound by these Terms. If you do not agree, please do not use the Platform.</p>
 
     <div>
-      <h2 class="font-semibold text-ink mb-1">1. Accounts</h2>
-      <p>You're responsible for the accuracy of the information you submit, including your resume content and, for recruiters, your company details. Recruiter accounts are reviewed before they can post jobs.</p>
+      <h2 class="font-semibold text-ink mb-1">1. Eligibility &amp; accounts</h2>
+      <p>You must provide accurate, current information when creating an account, and are responsible for maintaining the confidentiality of your login credentials and for all activity under your account. The Platform supports Candidate, Recruiter, and Administrator roles. Recruiter accounts are subject to a review step before they can publish job listings, to help keep postings genuine.</p>
     </div>
     <div>
       <h2 class="font-semibold text-ink mb-1">2. Acceptable use</h2>
-      <p>Don't post false job listings, misrepresent your company, or upload resumes that aren't your own without authorisation.</p>
+      <p>You agree not to: post false, misleading, or duplicate job listings; misrepresent your identity, qualifications, or company affiliation; upload a resume or professional content that is not your own without authorisation; attempt to circumvent account verification or security controls; scrape, harvest, or bulk-extract data from the Platform; or use the Platform for any unlawful purpose.</p>
     </div>
     <div>
-      <h2 class="font-semibold text-ink mb-1">3. Content</h2>
-      <p>You retain ownership of your resume and any content you upload. By applying to a job, you agree to share that content with the relevant recruiter.</p>
+      <h2 class="font-semibold text-ink mb-1">3. Job listings &amp; applications</h2>
+      <p>Recruiters are responsible for the accuracy of the job listings they publish. Candidates are responsible for the accuracy and completeness of the resumes and applications they submit. Submitting an application authorises the Platform to share the relevant application materials with the recruiter associated with that listing.</p>
     </div>
     <div>
-      <h2 class="font-semibold text-ink mb-1">4. Changes</h2>
-      <p>These terms may be updated as the platform evolves. Continued use after a change means you accept the updated terms.</p>
+      <h2 class="font-semibold text-ink mb-1">4. Your content</h2>
+      <p>You retain ownership of the resumes, profile information, and other content you upload ("Your Content"). By using the Platform, you grant Zentra a limited licence to store, process, and display Your Content solely to operate the Platform's features — including ATS scoring, job matching, and, where you apply to a listing, sharing it with the relevant recruiter. If you choose to enable a public profile, Your Content marked as visible may be viewed by anyone with the profile link; this is controlled entirely by your own privacy settings and can be turned off at any time.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">5. AI-generated scoring &amp; recommendations</h2>
+      <p>ATS compatibility scores, keyword analysis, job-match percentages, and similar AI-assisted output are provided to help guide decisions and are advisory only. They are not a guarantee of an interview, an offer, or any hiring outcome, and should not be treated as a substitute for your own judgement.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">6. Support &amp; communications</h2>
+      <p>You may contact us through the in-platform Help &amp; Support centre for account issues, content disputes, or data requests. We may send you account-related notifications (such as application status updates) as part of normal operation of the Platform.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">7. Suspension &amp; termination</h2>
+      <p>We may suspend or terminate an account that violates these Terms, misuses the Platform, or poses a risk to other users. You may stop using the Platform and request deletion of your account at any time through Help &amp; Support.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">8. Disclaimer &amp; limitation of liability</h2>
+      <p>The Platform is provided "as is" and "as available," without warranties of any kind, express or implied. To the fullest extent permitted by law, Zentra is not liable for indirect, incidental, or consequential damages arising from your use of the Platform, including hiring decisions made using it.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">9. Changes to these Terms</h2>
+      <p>We may update these Terms from time to time to reflect changes to the Platform. Continued use of the Platform after an update constitutes acceptance of the revised Terms.</p>
+    </div>
+    <div>
+      <h2 class="font-semibold text-ink mb-1">10. Contact</h2>
+      <p>Questions about these Terms can be raised through the <a href="{{ url_for('main.support') }}" class="text-indigo-600 hover:underline">Help &amp; Support</a> centre.</p>
     </div>
   </div>
 </div>

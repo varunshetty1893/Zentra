@@ -1,9 +1,18 @@
+import pytest
 from app import create_app, db
 from app.models.user import User
 from app.models.job import Job
 from app.models.resume import Resume
 from app.models.application import Application
 
+# This is an integration check against real seeded data (from
+# seed_microsoft.py), not a unit test — it needs create_app()'s
+# *real* DATABASE_URL (dev/staging Postgres), not the isolated
+# in-memory SQLite the rest of the suite uses. Excluded from the
+# default `pytest` run (see pyproject.toml addopts) so CI/local runs
+# never hang waiting on a database that may not be reachable. Run it
+# explicitly after seeding with: pytest -m requires_seed_data
+@pytest.mark.requires_seed_data
 def test_microsoft_seed():
     app = create_app()
     with app.app_context():

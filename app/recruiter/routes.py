@@ -1163,6 +1163,11 @@ def pipeline():
         "rejected": [a for a in all_apps if a.status == Application.STATUS_REJECTED],
     }
 
+    VALID_STAGES = {"applied", "under_review", "shortlisted", "interview", "hired", "rejected"}
+    active_stage = request.args.get("stage", "applied").strip()
+    if active_stage not in VALID_STAGES:
+        active_stage = "applied"
+
     return render_template(
         "recruiter/pipeline.html",
         jobs=recruiter_jobs,
@@ -1170,6 +1175,7 @@ def pipeline():
         search_query=search_query,
         columns=columns,
         total_count=len(all_apps),
+        active_stage=active_stage,
         active_nav="pipeline",
     )
 
@@ -1411,7 +1417,7 @@ def update_application_status(application_id):
     flash(f"Candidate status updated to '{status_label}'.", "success")
 
     if return_to == "pipeline":
-        return redirect(url_for("recruiter.pipeline", job_id=application.job_id))
+        return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage=new_status))
     elif return_to == "intelligence":
         return redirect(url_for("recruiter.candidate_intelligence", candidate_id=application.candidate_id, job_id=application.job_id))
     return redirect(url_for("recruiter.applicants", job_id=application.job_id))

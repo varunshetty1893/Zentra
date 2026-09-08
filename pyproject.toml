@@ -29,3 +29,9 @@ dependencies = [
 
 [tool.vercel]
 entrypoint = "run:app"
+
+[tool.pytest.ini_options]
+markers = [
+    "requires_seed_data: integration check against a real, already-seeded database (run.py's DATABASE_URL) — not part of the default run; invoke with `pytest -m requires_seed_data` after running seed_microsoft.py against that database.",
+]
+addopts = "-m 'not requires_seed_data'"
