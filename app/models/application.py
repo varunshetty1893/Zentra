@@ -34,6 +34,20 @@ class Application(db.Model):
     cover_note = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), nullable=False, default=STATUS_APPLIED)
     applied_at = db.Column(db.DateTime, default=utcnow)
+    # Set when a recruiter schedules an interview (status -> interview).
+    # Surfaced to the candidate via the status-change notification/event note.
+    interview_date = db.Column(db.DateTime, nullable=True)
+    interview_type = db.Column(db.String(50), nullable=True)
+    interviewer_name = db.Column(db.String(120), nullable=True)
+    meeting_link = db.Column(db.String(255), nullable=True)
+    # Recruiter explicitly marks an interview done — separate from "is the
+    # scheduled date in the past" because an interview can slip and still
+    # needs an explicit close-out action.
+    interview_completed = db.Column(db.Boolean, nullable=False, default=False, server_default="false")
+    # Optional free-text reason captured on the Reject action, shown back on
+    # the Rejected pipeline card as an audit trail of why a candidate was
+    # passed on.
+    rejection_reason = db.Column(db.Text, nullable=True)
 
     job = db.relationship("Job", back_populates="applications")
     candidate = db.relationship("User", back_populates="applications", foreign_keys=[candidate_id])

@@ -2,31 +2,65 @@
 {% block title %}Zentra — Hiring Pipeline{% endblock %}
 
 {% block content %}
+
+{% macro pagination_controls(stage_key) %}
+  {% set p = columns[stage_key] %}
+  <div class="flex items-center justify-between mt-5 pt-4 border-t border-slate-100">
+    <p class="text-xs text-slate-400">
+      Page {{ p.page }} of {{ p.total_pages }} &middot; {{ p.total_count }} candidate{{ 's' if p.total_count != 1 else '' }}
+    </p>
+    {% if p.total_pages > 1 %}
+    <div class="flex items-center gap-2">
+      {% if p.has_prev %}
+      <a href="{{ url_for('recruiter.pipeline', job_id=selected_job_id, q=search_query, stage=stage_key, **{stage_key + '_page': p.page - 1}) }}"
+         class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors inline-flex items-center gap-1">
+        <i class="bi bi-arrow-left"></i> Prev
+      </a>
+      {% else %}
+      <span class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-slate-100 text-slate-300 inline-flex items-center gap-1">
+        <i class="bi bi-arrow-left"></i> Prev
+      </span>
+      {% endif %}
+      {% if p.has_next %}
+      <a href="{{ url_for('recruiter.pipeline', job_id=selected_job_id, q=search_query, stage=stage_key, **{stage_key + '_page': p.page + 1}) }}"
+         class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors inline-flex items-center gap-1">
+        Next <i class="bi bi-arrow-right"></i>
+      </a>
+      {% else %}
+      <span class="text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-slate-100 text-slate-300 inline-flex items-center gap-1">
+        Next <i class="bi bi-arrow-right"></i>
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
 <div class="max-w-7xl mx-auto px-6 lg:px-10 py-10">
 
   <!-- ── Page Header + Filter ── -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-100">
     <div>
       <h1 class="text-3xl font-extrabold tracking-tight text-ink">Hiring Pipeline</h1>
-      <p class="text-sm text-slate-500 mt-1">Track and advance applicants across every recruitment stage in real-time.</p>
+      <p class="text-xs text-slate-400 mt-0.5">Track applicants in real-time.</p>
     </div>
 
-    <form method="GET" action="{{ url_for('recruiter.pipeline') }}" class="flex flex-wrap items-center gap-3">
+    <form method="GET" action="{{ url_for('recruiter.pipeline') }}" class="flex flex-nowrap items-center gap-3 overflow-x-auto">
       <input type="hidden" name="stage" value="{{ active_stage }}">
 
       <!-- Search -->
-      <div class="relative">
+      <div class="relative shrink-0">
         <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
         <input type="text" name="q" value="{{ search_query }}"
                placeholder="Search by name or email..."
-               class="bg-white border border-slate-200 text-xs font-medium rounded-xl pl-8 pr-3 py-2.5 w-52 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all shadow-sm"/>
+               class="bg-white border border-slate-200 text-xs font-medium rounded-xl pl-8 pr-3 py-2.5 w-44 sm:w-52 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all shadow-sm"/>
       </div>
 
       <!-- Role selector -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <label class="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Role:</label>
         <select name="job_id" onchange="this.form.submit()"
-                class="bg-white border border-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all shadow-sm">
+                class="bg-white border border-slate-200 text-xs font-semibold rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all shadow-sm max-w-[10rem] sm:max-w-none">
           {% if not jobs %}
           <option value="">No postings yet</option>
           {% endif %}
@@ -57,16 +91,16 @@
        STAGE TAB BAR  (admin approval style)
        ══════════════════════════════════════════════ -->
   {% set stage_tabs = [
-    ('applied',      'Applied',      columns.applied,      'slate',   'bg-slate-500'),
-    ('under_review', 'Under Review', columns.under_review, 'blue',    'bg-blue-500'),
-    ('shortlisted',  'Shortlisted',  columns.shortlisted,  'violet',  'bg-violet-500'),
-    ('interview',    'Interview',    columns.interview,     'amber',   'bg-amber-500'),
-    ('hired',        'Hired',        columns.hired,         'emerald', 'bg-emerald-500'),
-    ('rejected',     'Rejected',     columns.rejected,      'rose',    'bg-rose-400'),
+    ('applied',      'Applied'),
+    ('under_review', 'Under Review'),
+    ('shortlisted',  'Shortlisted'),
+    ('interview',    'Interview'),
+    ('hired',        'Hired'),
+    ('rejected',     'Rejected'),
   ] %}
 
   <div class="mt-8 flex items-center gap-1 bg-slate-100/90 rounded-xl p-1 w-fit overflow-x-auto">
-    {% for key, label, items, color, dot in stage_tabs %}
+    {% for key, label in stage_tabs %}
     <button type="button"
             onclick="switchStage('{{ key }}')"
             id="tab-btn-{{ key }}"
@@ -76,7 +110,7 @@
       <span class="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1
                    text-[10px] font-bold rounded-full
                    {{ 'bg-indigo-600 text-white' if active_stage == key else 'bg-slate-200 text-slate-600' }}">
-        {{ items|length }}
+        {{ columns[key].total_count }}
       </span>
     </button>
     {% endfor %}
@@ -88,7 +122,7 @@
 
   <!-- ── Applied ── -->
   <div id="stage-applied" class="stage-panel {{ '' if active_stage == 'applied' else 'hidden' }} mt-6">
-    {% if not columns.applied %}
+    {% if not columns.applied.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-inbox text-2xl"></i>
@@ -98,7 +132,8 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.applied %}
+      {% for app in columns.applied.apps %}
+      {% set ctx = columns.applied.card_context[app.id] %}
       <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <!-- Candidate Info -->
@@ -107,22 +142,45 @@
               {{ app.candidate.full_name[:1]|upper }}
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if ctx.match_label == 'Strong' else ('bg-indigo-50 text-indigo-700 border border-indigo-200' if ctx.match_label == 'Good' else 'bg-slate-100 text-slate-500 border border-slate-200') }}">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
               <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              {% if ctx.res_skills_top %}
+              <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                {% for skill in ctx.res_skills_top %}
+                <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">{{ skill }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              <p class="text-xs text-slate-400 mt-1.5">
+                {% if ctx.res_years %}{{ ctx.res_years|round|int }} yrs experience &middot; {% endif %}Applied {{ app.applied_at|timesince }}
+              </p>
             </div>
           </div>
-          <!-- Meta + Actions -->
-          <div class="flex items-center gap-4 shrink-0">
-            {% if app.match_score %}
-            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if app.match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
-              <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}%
-            </span>
-            {% endif %}
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
+          <!-- Actions -->
+          <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+               class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+              View Application
+            </a>
+            <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="status" value="rejected"/>
+              <input type="hidden" name="return_to" value="pipeline"/>
+              <button type="submit" class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-500 hover:border-rose-200 hover:text-rose-600 transition-colors">
+                Reject
+              </button>
+            </form>
             <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="status" value="under_review"/>
@@ -136,12 +194,13 @@
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('applied') }}
     {% endif %}
   </div>
 
   <!-- ── Under Review ── -->
   <div id="stage-under_review" class="stage-panel {{ '' if active_stage == 'under_review' else 'hidden' }} mt-6">
-    {% if not columns.under_review %}
+    {% if not columns.under_review.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-eye text-2xl"></i>
@@ -151,7 +210,8 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.under_review %}
+      {% for app in columns.under_review.apps %}
+      {% set ctx = columns.under_review.card_context[app.id] %}
       <div class="bg-white border border-blue-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-4 min-w-0">
@@ -159,21 +219,41 @@
               {{ app.candidate.full_name[:1]|upper }}
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if ctx.match_label == 'Strong' else ('bg-indigo-50 text-indigo-700 border border-indigo-200' if ctx.match_label == 'Good' else 'bg-slate-100 text-slate-500 border border-slate-200') }}">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
-              <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}{% if ctx.res_years %} &middot; {{ ctx.res_years|round|int }} yrs experience{% endif %}</p>
+              <div class="flex items-center gap-3 mt-2 flex-wrap">
+                {% if ctx.matched_count is not none %}
+                <span class="text-xs font-semibold text-emerald-700"><i class="bi bi-check-circle"></i> {{ ctx.matched_count }} matching skill{{ 's' if ctx.matched_count != 1 else '' }}</span>
+                <span class="text-xs font-semibold text-amber-600"><i class="bi bi-exclamation-triangle"></i> {{ ctx.missing_count }} missing skill{{ 's' if ctx.missing_count != 1 else '' }}</span>
+                {% endif %}
+              </div>
+              <p class="text-xs text-slate-400 mt-1">Last activity: {{ (app.events[-1].created_at if app.events else app.applied_at)|timesince }}</p>
             </div>
           </div>
-          <div class="flex items-center gap-4 shrink-0">
-            {% if app.match_score %}
-            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if app.match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
-              <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}%
-            </span>
-            {% endif %}
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
+          <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+               class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+              View Candidate
+            </a>
+            <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <input type="hidden" name="status" value="rejected"/>
+              <input type="hidden" name="return_to" value="pipeline"/>
+              <button type="submit" class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-500 hover:border-rose-200 hover:text-rose-600 transition-colors">
+                Reject
+              </button>
+            </form>
             <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="status" value="shortlisted"/>
@@ -187,12 +267,13 @@
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('under_review') }}
     {% endif %}
   </div>
 
   <!-- ── Shortlisted ── -->
   <div id="stage-shortlisted" class="stage-panel {{ '' if active_stage == 'shortlisted' else 'hidden' }} mt-6">
-    {% if not columns.shortlisted %}
+    {% if not columns.shortlisted.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-violet-50 text-violet-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-bookmark-check text-2xl"></i>
@@ -202,48 +283,81 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.shortlisted %}
+      {% for app in columns.shortlisted.apps %}
+      {% set ctx = columns.shortlisted.card_context[app.id] %}
       <div class="bg-white border border-violet-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-10 h-10 rounded-xl bg-lavender text-indigo-700 font-bold text-sm flex items-center justify-center shrink-0">
               {{ app.candidate.full_name[:1]|upper }}
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if ctx.match_label == 'Strong' else ('bg-indigo-50 text-indigo-700 border border-indigo-200' if ctx.match_label == 'Good' else 'bg-slate-100 text-slate-500 border border-slate-200') }}">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
               <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              {% if app.candidate.skills %}
+              <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                {% for skill in app.candidate.skills.split(',')[:4] %}
+                <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">{{ skill.strip() }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              <p class="text-xs text-slate-400 mt-1.5">
+                {% if ctx.shortlisted_at %}Shortlisted {{ ctx.shortlisted_at|timesince }}{% endif %}
+                &middot; Interview: Not scheduled
+              </p>
             </div>
           </div>
-          <div class="flex items-center gap-4 shrink-0">
-            {% if app.match_score %}
-            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if app.match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
-              <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}%
-            </span>
-            {% endif %}
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
-            <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
+          <details class="shrink-0 group">
+            <summary class="list-none cursor-pointer text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2.5 rounded-xl transition-colors inline-flex items-center gap-1 w-fit">
+              Schedule Interview <i class="bi bi-arrow-right"></i>
+            </summary>
+            <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}"
+                  class="mt-3 p-4 bg-amber-50/60 border border-amber-100 rounded-xl grid grid-cols-2 gap-2 w-full lg:w-80">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="status" value="interview"/>
               <input type="hidden" name="return_to" value="pipeline"/>
-              <button type="submit" class="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1">
-                Schedule Interview <i class="bi bi-arrow-right"></i>
+              <input type="date" name="interview_date" required title="Interview date" min="{{ today_str }}"
+                     class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+              <input type="time" name="interview_time" title="Interview time"
+                     class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+              <select name="interview_type" class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+                <option value="">Interview type…</option>
+                <option value="Screening">Screening</option>
+                <option value="Technical">Technical</option>
+                <option value="HR">HR</option>
+                <option value="Final">Final</option>
+              </select>
+              <input type="text" name="interviewer_name" placeholder="Interviewer"
+                     class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+              <input type="url" name="meeting_link" placeholder="Meeting link (optional)"
+                     class="col-span-2 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+              <button type="submit" class="col-span-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg transition-colors mt-1">
+                Confirm Schedule
               </button>
             </form>
-          </div>
+          </details>
         </div>
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('shortlisted') }}
     {% endif %}
   </div>
 
   <!-- ── Interview ── -->
   <div id="stage-interview" class="stage-panel {{ '' if active_stage == 'interview' else 'hidden' }} mt-6">
-    {% if not columns.interview %}
+    {% if not columns.interview.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-calendar-event text-2xl"></i>
@@ -253,29 +367,92 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.interview %}
-      <div class="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {% for app in columns.interview.apps %}
+      {% set ctx = columns.interview.card_context[app.id] %}
+      <div class="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow relative">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-10 h-10 rounded-xl bg-lavender text-indigo-700 font-bold text-sm flex items-center justify-center shrink-0">
               {{ app.candidate.full_name[:1]|upper }}
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if ctx.match_label == 'Strong' else ('bg-indigo-50 text-indigo-700 border border-indigo-200' if ctx.match_label == 'Good' else 'bg-slate-100 text-slate-500 border border-slate-200') }}">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
               <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              <div class="mt-2 space-y-1">
+                {% if app.interview_date %}
+                <p class="text-xs font-semibold text-amber-700"><i class="bi bi-calendar-event"></i> {{ app.interview_date.strftime('%b %d, %Y') }}{% if app.interview_date.hour or app.interview_date.minute %} &middot; {{ app.interview_date.strftime('%I:%M %p') }}{% endif %}</p>
+                {% endif %}
+                {% if app.interview_type %}
+                <p class="text-xs text-slate-500"><i class="bi bi-person-badge"></i> {{ app.interview_type }} Interview</p>
+                {% endif %}
+                <p class="text-xs font-semibold {{ 'text-emerald-600' if app.interview_completed else ('text-amber-600' if ctx.is_upcoming else 'text-rose-500') }}">
+                  ● {{ 'Completed' if app.interview_completed else ('Upcoming' if ctx.is_upcoming else 'Awaiting outcome') }}
+                </p>
+                {% if app.interviewer_name %}
+                <p class="text-xs text-slate-400">Interviewer: {{ app.interviewer_name }}</p>
+                {% endif %}
+              </div>
             </div>
           </div>
-          <div class="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-            {% if app.match_score %}
-            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full {{ 'bg-emerald-50 text-emerald-700 border border-emerald-200' if app.match_score >= 80 else 'bg-indigo-50 text-indigo-700 border border-indigo-200' }}">
-              <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}%
-            </span>
+          <div class="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+               class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+              View Candidate
+            </a>
+            {% if app.meeting_link %}
+            <a href="{{ app.meeting_link }}" target="_blank" rel="noopener"
+               class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+              View Interview
+            </a>
             {% endif %}
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
+            <details class="group">
+              <summary class="list-none cursor-pointer text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors w-fit">
+                Reschedule
+              </summary>
+              <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}"
+                    class="mt-3 p-4 bg-amber-50/60 border border-amber-100 rounded-xl grid grid-cols-2 gap-2 w-full lg:w-80 absolute z-10 shadow-lg lg:right-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <input type="hidden" name="status" value="interview"/>
+                <input type="hidden" name="return_to" value="pipeline"/>
+                <input type="date" name="interview_date" required title="Interview date" min="{{ today_str }}"
+                       class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+                <input type="time" name="interview_time" title="Interview time"
+                       class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+                <select name="interview_type" class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500">
+                  <option value="">Interview type…</option>
+                  <option value="Screening">Screening</option>
+                  <option value="Technical">Technical</option>
+                  <option value="HR">HR</option>
+                  <option value="Final">Final</option>
+                </select>
+                <input type="text" name="interviewer_name" placeholder="Interviewer"
+                       class="col-span-1 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+                <input type="url" name="meeting_link" placeholder="Meeting link (optional)"
+                       class="col-span-2 text-xs font-medium border border-slate-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"/>
+                <button type="submit" class="col-span-2 text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-lg transition-colors mt-1">
+                  Confirm New Time
+                </button>
+              </form>
+            </details>
+            {% if not app.interview_completed %}
+            <form method="POST" action="{{ url_for('recruiter.mark_interview_complete', application_id=app.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="text-xs font-semibold border border-slate-200 px-3.5 py-2 rounded-xl text-slate-600 hover:bg-slate-50 transition-colors">
+                Mark Complete
+              </button>
+            </form>
+            {% endif %}
             <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="status" value="rejected"/>
@@ -288,7 +465,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
               <input type="hidden" name="status" value="hired"/>
               <input type="hidden" name="return_to" value="pipeline"/>
-              <button type="submit" class="text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1">
+              <button type="submit" class="text-xs font-bold text-white px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1 {{ 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-300 ring-offset-1' if app.interview_completed else 'bg-emerald-600 hover:bg-emerald-700' }}">
                 <i class="bi bi-check-lg"></i> Hire
               </button>
             </form>
@@ -297,12 +474,13 @@
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('interview') }}
     {% endif %}
   </div>
 
   <!-- ── Hired ── -->
   <div id="stage-hired" class="stage-panel {{ '' if active_stage == 'hired' else 'hidden' }} mt-6">
-    {% if not columns.hired %}
+    {% if not columns.hired.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-trophy text-2xl"></i>
@@ -312,42 +490,69 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.hired %}
+      {% for app in columns.hired.apps %}
+      {% set ctx = columns.hired.card_context[app.id] %}
       <div class="bg-white border border-emerald-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 font-bold text-sm flex items-center justify-center shrink-0">
-              {{ app.candidate.full_name[:1]|upper }}
+              <i class="bi bi-check-lg"></i>
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-ink hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
               <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              <p class="text-xs font-semibold text-emerald-700 mt-2">
+                {% if ctx.hired_at %}Hired on {{ ctx.hired_at.strftime('%b %d, %Y') }}{% else %}Hired{% endif %}
+              </p>
+              <p class="text-xs text-slate-400">Interview completed &middot; Selected</p>
+              {% if app.candidate.skills %}
+              <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                {% for skill in app.candidate.skills.split(',')[:5] %}
+                <span class="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">{{ skill.strip() }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
             </div>
           </div>
-          <div class="flex items-center gap-4 shrink-0">
-            <span class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              🎉 Hired
-            </span>
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
+          <div class="flex items-center gap-3 shrink-0">
+            <form method="POST" action="{{ url_for('recruiter.undo_application_status', application_id=app.id) }}"
+                  onsubmit="return confirm('Undo this hire and move {{ app.candidate.full_name }} back to their previous stage?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="text-[11px] font-semibold text-slate-400 hover:text-slate-600 underline decoration-dotted transition-colors">
+                Undo
+              </button>
+            </form>
             <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
                class="text-xs font-semibold border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 transition-colors text-slate-600">
-              View Profile
+              View Candidate
+            </a>
+            <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+               class="text-xs font-semibold bg-emerald-600 text-white px-4 py-2 rounded-xl hover:bg-emerald-700 transition-colors">
+              View Details
             </a>
           </div>
         </div>
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('hired') }}
     {% endif %}
   </div>
 
   <!-- ── Rejected ── -->
   <div id="stage-rejected" class="stage-panel {{ '' if active_stage == 'rejected' else 'hidden' }} mt-6">
-    {% if not columns.rejected %}
+    {% if not columns.rejected.apps %}
     <div class="bg-white border border-slate-200 rounded-2xl p-12 text-center">
       <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
         <i class="bi bi-x-circle text-2xl"></i>
@@ -357,7 +562,8 @@
     </div>
     {% else %}
     <div class="space-y-3">
-      {% for app in columns.rejected %}
+      {% for app in columns.rejected.apps %}
+      {% set ctx = columns.rejected.card_context[app.id] %}
       <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm opacity-80 hover:opacity-100 hover:shadow-md transition-all">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div class="flex items-center gap-4 min-w-0">
@@ -365,22 +571,46 @@
               {{ app.candidate.full_name[:1]|upper }}
             </div>
             <div class="min-w-0">
-              <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
-                 class="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
-                {{ app.candidate.full_name }}
-              </a>
+              <div class="flex items-center gap-2 flex-wrap">
+                <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+                   class="text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors">
+                  {{ app.candidate.full_name }}
+                </a>
+                {% if app.match_score %}
+                <span class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                  <i class="bi bi-stars mr-0.5"></i>{{ app.match_score|round|int }}% {{ ctx.match_label }}
+                </span>
+                {% endif %}
+              </div>
               <p class="text-xs text-slate-400 truncate">{{ app.candidate.email }}</p>
               <p class="text-xs text-slate-400 mt-0.5">{{ app.job.title }}</p>
+              <p class="text-xs text-slate-500 mt-2">
+                Rejected{% if ctx.rejected_at %} &middot; {{ ctx.rejected_at.strftime('%b %d, %Y') }}{% endif %}
+              </p>
+              <p class="text-xs text-slate-400">Stage: {{ ctx.rejected_from_status.replace('_', ' ').title() }}</p>
+              {% if app.rejection_reason %}
+              <p class="text-xs text-slate-400 mt-0.5">Reason: {{ app.rejection_reason }}</p>
+              {% endif %}
             </div>
           </div>
-          <div class="flex items-center gap-4 shrink-0">
-            <span class="text-xs text-slate-400">{{ app.applied_at.strftime('%b %d') }}</span>
+          <div class="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+            <form method="POST" action="{{ url_for('recruiter.undo_application_status', application_id=app.id) }}"
+                  onsubmit="return confirm('Undo this rejection and move {{ app.candidate.full_name }} back to their previous stage?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+              <button type="submit" class="text-[11px] font-semibold text-slate-400 hover:text-slate-600 underline decoration-dotted transition-colors">
+                Undo
+              </button>
+            </form>
+            <a href="{{ url_for('recruiter.candidate_intelligence', candidate_id=app.candidate_id, job_id=app.job_id) }}"
+               class="text-xs font-semibold border border-slate-200 px-4 py-2 rounded-xl hover:bg-slate-50 transition-colors text-slate-600">
+              View Candidate
+            </a>
             <form method="POST" action="{{ url_for('recruiter.update_application_status', application_id=app.id) }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-              <input type="hidden" name="status" value="interview"/>
+              <input type="hidden" name="status" value="under_review"/>
               <input type="hidden" name="return_to" value="pipeline"/>
-              <button type="submit" class="text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1">
-                <i class="bi bi-arrow-counterclockwise"></i> Reconsider
+              <button type="submit" class="text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100 px-4 py-2 rounded-xl transition-colors inline-flex items-center gap-1 shrink-0">
+                <i class="bi bi-arrow-counterclockwise"></i> Reconsider Candidate
               </button>
             </form>
           </div>
@@ -388,6 +618,7 @@
       </div>
       {% endfor %}
     </div>
+    {{ pagination_controls('rejected') }}
     {% endif %}
   </div>
 

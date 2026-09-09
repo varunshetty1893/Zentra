@@ -40,6 +40,11 @@ class Job(db.Model):
     salary_min = db.Column(db.Integer, nullable=True)
     salary_max = db.Column(db.Integer, nullable=True)
 
+    # Per-job AI shortlist threshold (0-100). Recruiters can adjust this from
+    # the Shortlisted workspace page. Persisted so the setting survives page
+    # reloads. Safe default matches the platform-wide SHORTLIST_SCORE_THRESHOLD.
+    shortlist_threshold = db.Column(db.Integer, nullable=False, default=40, server_default="40")
+
     status = db.Column(db.String(20), nullable=False, default=STATUS_ACTIVE)
     created_at = db.Column(db.DateTime, default=utcnow)
     application_deadline = db.Column(db.DateTime, nullable=True)  # None = no deadline

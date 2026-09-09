@@ -152,7 +152,7 @@
         </div>
       </div>
 
-      <!-- Workspace Step Bar (Overview → Applicants → AI Shortlist → Pipeline) -->
+      <!-- Workspace Step Bar (Overview → Applicants → Shortlisted → Pipeline) -->
       <div class="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div class="flex items-center gap-2 flex-wrap">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-1">Workspace:</span>
@@ -174,7 +174,7 @@
 
           <a href="{{ url_for('recruiter.job_shortlist', job_id=job.id) }}" 
              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors">
-            <i class="bi bi-stars text-indigo-600"></i>AI Shortlist
+            <i class="bi bi-stars text-indigo-600"></i>Shortlisted
             {% if card.shortlisted %}
             <span class="px-1.5 py-0.2 rounded-full bg-indigo-200 text-indigo-900 text-[10px] font-bold">{{ card.shortlisted }}</span>
             {% endif %}

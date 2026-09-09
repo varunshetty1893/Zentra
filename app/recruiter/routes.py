@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import timedelta, datetime
 from app.utils.time import utcnow
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, current_app, abort
 from flask_login import login_user, login_required, current_user
@@ -30,7 +30,7 @@ recruiter_bp = Blueprint("recruiter", __name__, template_folder="../templates/re
 # meaning of "top match" or "shortlist-worthy" stays consistent everywhere
 # it's used instead of drifting as separate hardcoded numbers per page.
 TOP_MATCH_SCORE_THRESHOLD = 80   # Dashboard "top-tier match" alert
-SHORTLIST_SCORE_THRESHOLD = 70   # Auto-include on the Shortlist page
+SHORTLIST_SCORE_THRESHOLD = 40   # Auto-include on the Shortlist page
 COMPARE_DEFAULT_TOP_N = 3        # How many candidates Compare preselects by default
 
 # Allowed application status transitions, keyed by current status. Shared by
@@ -88,6 +88,91 @@ def _structured_resume_evidence(application):
         "res_degrees": structured_resume.get("education", {}).get("degrees", []),
         "has_education": bool(structured_resume.get("education", {}).get("has_education")),
     }
+
+
+def _match_label(score):
+    """Bucket a match score into the Strong/Good/Low label used on pipeline
+    cards. Kept in one place so the cutoffs can't drift between stages."""
+    score = score or 0
+    if score >= TOP_MATCH_SCORE_THRESHOLD:
+        return "Strong"
+    if score >= 50:
+        return "Good"
+    return "Low"
+
+
+def _latest_event_at(application, status):
+    """Timestamp of the most recent ApplicationEvent with the given status,
+    used to show e.g. 'Shortlisted 2 days ago' / hire date / rejection date
+    without needing a dedicated column for every stage transition."""
+    event = next((e for e in reversed(application.events) if e.status == status), None)
+    return event.created_at if event else None
+
+
+def _status_before_latest(application):
+    """The status the application was in immediately before its current
+    (most recent) status — used to show 'Stage: Under Review' on a
+    Rejected card, and by the Undo action to know what to revert to."""
+    events = application.events  # ordered oldest -> newest
+    if len(events) >= 2:
+        return events[-2].status
+    return Application.STATUS_APPLIED
+
+
+
+def _shortlist_source(application):
+    """Determine whether a candidate was shortlisted manually by a recruiter
+    or automatically by the AI auto-shortlist action, by inspecting the
+    most recent 'shortlisted' ApplicationEvent note.
+
+    Returns a dict with:
+      'label'  — short display string ('AI Auto-Shortlisted' | 'Manually Shortlisted')
+      'is_auto' — bool
+    """
+    shortlist_event = next(
+        (e for e in reversed(application.events)
+         if e.status == Application.STATUS_SHORTLISTED),
+        None,
+    )
+    is_auto = bool(
+        shortlist_event and shortlist_event.note
+        and shortlist_event.note.startswith("Auto-shortlisted by AI")
+    )
+    return {
+        "is_auto": is_auto,
+        "label": "AI Auto-Shortlisted" if is_auto else "Manually Shortlisted",
+    }
+
+
+def _pipeline_card_context(application):
+    """Build the extra per-card fields the pipeline templates need, on top
+    of the raw Application row: match label, JD skill match evidence,
+    and stage-specific dates pulled from the event history."""
+    ctx = {
+        "match_label": _match_label(application.match_score),
+    }
+    if application.status in (Application.STATUS_APPLIED, Application.STATUS_UNDER_REVIEW):
+        evidence = _structured_resume_evidence(application)
+        ctx["res_years"] = evidence["res_years"]
+        ctx["res_skills_top"] = list(evidence["res_skills"])[:4]
+        if application.status == Application.STATUS_UNDER_REVIEW and application.job:
+            structured_jd = structured_jd_for_job(application.job)
+            jd_req_skills = structured_jd.get("required_skills", []) or structured_jd.get("technical_skills", [])
+            res_skills = evidence["res_skills"]
+            ctx["matched_count"] = len([s for s in jd_req_skills if s in res_skills])
+            ctx["missing_count"] = len([s for s in jd_req_skills if s not in res_skills])
+    if application.status == Application.STATUS_SHORTLISTED:
+        ctx["shortlisted_at"] = _latest_event_at(application, Application.STATUS_SHORTLISTED)
+    if application.status == Application.STATUS_INTERVIEW:
+        ctx["is_upcoming"] = bool(
+            application.interview_date and application.interview_date >= utcnow() and not application.interview_completed
+        )
+    if application.status == Application.STATUS_HIRED:
+        ctx["hired_at"] = _latest_event_at(application, Application.STATUS_HIRED)
+    if application.status == Application.STATUS_REJECTED:
+        ctx["rejected_at"] = _latest_event_at(application, Application.STATUS_REJECTED)
+        ctx["rejected_from_status"] = _status_before_latest(application)
+    return ctx
 
 
 def _auto_close_other_applications_on_hire(hired_application):
@@ -697,17 +782,192 @@ def bulk_update_applicant_status(job_id):
 @recruiter_bp.route("/jobs/<int:job_id>/shortlist")
 @approved_recruiter_required
 def job_shortlist(job_id):
+    """Step 3 — AI Review: shows AI-recommended candidates (Applied/Under Review
+    scoring >= threshold) awaiting a Shortlist or Reject decision. Does NOT show
+    already-shortlisted candidates — those live on the separate Shortlisted page."""
     job = Job.query.filter_by(
         id=job_id, recruiter_profile_id=current_user.recruiter_profile.id
     ).first_or_404()
-    
-    all_job_apps = Application.query.filter_by(job_id=job.id).all()
-    shortlisted_apps = sorted(
-        [a for a in all_job_apps if a.status == Application.STATUS_SHORTLISTED or (a.match_score or 0) >= SHORTLIST_SCORE_THRESHOLD],
+
+    # Threshold: URL param for preview, else fall back to the job's persisted
+    # value so the setting survives page reloads. Clamped to 0-100.
+    threshold = request.args.get("threshold", type=float)
+    if threshold is None:
+        threshold = float(job.shortlist_threshold if job.shortlist_threshold is not None else SHORTLIST_SCORE_THRESHOLD)
+    threshold = max(0.0, min(100.0, threshold))
+
+    # Count already-shortlisted for the step-bar badge only — don't render them here.
+    shortlisted_count = Application.query.filter_by(
+        job_id=job.id, status=Application.STATUS_SHORTLISTED
+    ).count()
+
+    # Threshold comparison uses round() — same as every UI card display.
+    # Ensures a candidate shown as "40%" is never excluded by a 40% threshold
+    # due to raw float drift (e.g. 39.6 < 40.0 even though both round to 40).
+    def _rounded_score(a):
+        return round(a.match_score or 0)
+
+    # ── AI Recommended — Awaiting Recruiter Review ────────────────────────
+    # Only Applied / Under Review candidates scoring >= threshold.
+    # Shortlisted, Interview, Hired, Rejected candidates are excluded —
+    # they have already been actioned and belong on other pages.
+    eligible_apps = sorted(
+        [
+            a for a in Application.query.filter_by(job_id=job.id)
+            .filter(Application.status.in_([
+                Application.STATUS_APPLIED, Application.STATUS_UNDER_REVIEW
+            ])).all()
+            if _rounded_score(a) >= threshold
+        ],
         key=lambda a: a.match_score or 0,
         reverse=True,
     )
-    return render_template("recruiter/job_shortlist.html", job=job, applications=shortlisted_apps, active_nav="jobs", active_tab="shortlist")
+
+    auto_eligible_count = len(eligible_apps)
+
+    # Paginate
+    page = request.args.get("page", 1, type=int)
+    per_page = 15
+    total_apps = len(eligible_apps)
+    total_pages = max(1, (total_apps + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    paged_apps = eligible_apps[start:start + per_page]
+
+    return render_template(
+        "recruiter/job_shortlist.html",
+        job=job,
+        applications=paged_apps,
+        shortlisted_count=shortlisted_count,
+        page=page,
+        total_pages=total_pages,
+        total_apps=total_apps,
+        active_nav="jobs",
+        active_tab="shortlist",
+        threshold=threshold,
+        auto_eligible_count=auto_eligible_count,
+    )
+
+
+@recruiter_bp.route("/jobs/<int:job_id>/shortlist/auto", methods=["POST"])
+@approved_recruiter_required
+def auto_shortlist(job_id):
+    """Bulk-move every Applied/Under-Review candidate at or above the given
+    match-score threshold into 'shortlisted'.
+
+    Rules enforced:
+    - Job must belong to the current recruiter (server-side, not just UI).
+    - Only Applied / Under Review candidates are eligible.
+    - Comparison uses round(match_score) for consistency with the UI display.
+    - Idempotent: already-shortlisted candidates are ignored by the status
+      filter, so running twice does not create duplicate events or moves.
+    - Manual shortlist decisions are never overwritten.
+    - Threshold is persisted on the job after each successful run.
+    """
+    job = Job.query.filter_by(
+        id=job_id, recruiter_profile_id=current_user.recruiter_profile.id
+    ).first_or_404()
+
+    threshold = request.form.get("threshold", SHORTLIST_SCORE_THRESHOLD, type=float)
+    if threshold is None:
+        threshold = SHORTLIST_SCORE_THRESHOLD
+    threshold = max(0.0, min(100.0, threshold))
+
+    # Only consider Applied / Under Review — already-shortlisted, rejected,
+    # interview, and hired candidates are never touched by this action.
+    eligible = Application.query.filter_by(job_id=job.id).filter(
+        Application.status.in_([Application.STATUS_APPLIED, Application.STATUS_UNDER_REVIEW])
+    ).all()
+
+    moved = 0
+    for app in eligible:
+        if round(app.match_score or 0) >= threshold:
+            app.status = Application.STATUS_SHORTLISTED
+            db.session.add(ApplicationEvent(
+                application_id=app.id,
+                status=Application.STATUS_SHORTLISTED,
+                # Note prefix must start with "Auto-shortlisted by AI" —
+                # _shortlist_source() relies on this prefix to classify origin.
+                note=f"Auto-shortlisted by AI (match score {round(app.match_score or 0)}% >= {int(threshold)}% threshold).",
+            ))
+            db.session.add(Notification(
+                candidate_id=app.candidate_id,
+                title=f"Application update: {job.title}",
+                message=f"Your application has been shortlisted (AI match score: {round(app.match_score or 0)}%).",
+                link=f"/candidate/applications/{app.id}",
+            ))
+            moved += 1
+
+    # Persist the threshold so the next page load remembers the recruiter's
+    # chosen setting without needing a URL param.
+    job.shortlist_threshold = int(threshold)
+    db.session.commit()
+
+    if moved:
+        flash(f"Auto-shortlisted {moved} candidate{'s' if moved != 1 else ''} scoring {int(threshold)}% or higher.", "success")
+    else:
+        flash(f"No Applied/Under Review candidates currently score {int(threshold)}% or higher — threshold saved.", "info")
+
+    # After auto-shortlist, go to the Shortlisted page so the recruiter can
+    # immediately see who was just moved.
+    return redirect(url_for("recruiter.job_shortlisted", job_id=job.id))
+
+
+@recruiter_bp.route("/jobs/<int:job_id>/shortlisted")
+@approved_recruiter_required
+def job_shortlisted(job_id):
+    """Step 4 — Shortlisted: shows only confirmed shortlisted candidates.
+    No threshold controls, no AI recommendations — this is purely a view of
+    who has been shortlisted (manually or via auto-shortlist) and is awaiting
+    interview scheduling in the Pipeline."""
+    job = Job.query.filter_by(
+        id=job_id, recruiter_profile_id=current_user.recruiter_profile.id
+    ).first_or_404()
+
+    shortlisted_apps = sorted(
+        Application.query.filter_by(
+            job_id=job.id, status=Application.STATUS_SHORTLISTED
+        ).all(),
+        key=lambda a: a.match_score or 0,
+        reverse=True,
+    )
+
+    # Source context (Manual vs AI) from ApplicationEvent history.
+    shortlisted_contexts = {a.id: _shortlist_source(a) for a in shortlisted_apps}
+
+    # Pending AI review count — shown in step bar badge on step 3.
+    def _rounded_score(a):
+        return round(a.match_score or 0)
+
+    threshold = float(
+        job.shortlist_threshold if job.shortlist_threshold is not None
+        else SHORTLIST_SCORE_THRESHOLD
+    )
+    pending_review_count = Application.query.filter_by(job_id=job.id).filter(
+        Application.status.in_([Application.STATUS_APPLIED, Application.STATUS_UNDER_REVIEW])
+    ).count()  # badge-only — not filtered by threshold on this page
+
+    # Paginate
+    page = request.args.get("page", 1, type=int)
+    per_page = 15
+    total = len(shortlisted_apps)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    paged_apps = shortlisted_apps[start:start + per_page]
+
+    return render_template(
+        "recruiter/job_shortlisted.html",
+        job=job,
+        applications=paged_apps,
+        shortlisted_contexts=shortlisted_contexts,
+        page=page,
+        total_pages=total_pages,
+        total=total,
+        pending_review_count=pending_review_count,
+        active_nav="jobs",
+        active_tab="shortlisted",
+    )
 
 
 @recruiter_bp.route("/jobs/<int:job_id>/compare")
@@ -856,24 +1116,39 @@ def candidates():
         return redirect(url_for("recruiter.dashboard"))
 
     q = request.args.get("q", "").strip()
-    skill_filter = request.args.get("skill", "").strip()
+    job_id_filter = request.args.get("job_id", "").strip()
     exp_filter = request.args.get("experience", "").strip()
     min_score = request.args.get("score", "").strip()
     page = request.args.get("page", 1, type=int)
     per_page = 12
 
-    recruiter_jobs = Job.query.filter_by(recruiter_profile_id=profile.id).all()
+    recruiter_jobs = Job.query.filter_by(recruiter_profile_id=profile.id).order_by(Job.title).all()
     job_ids = [j.id for j in recruiter_jobs]
+
+    # If a specific posting is picked from the "Posted Jobs" dropdown, only
+    # ever consider that one job for matching/scoring/filtering below —
+    # everywhere else in this function that used the full job_ids list.
+    scoped_job_id = None
+    if job_id_filter:
+        try:
+            scoped_job_id = int(job_id_filter)
+        except ValueError:
+            scoped_job_id = None
+        if scoped_job_id not in job_ids:
+            scoped_job_id = None  # ignore a job_id that isn't this recruiter's
+
+    active_job_ids = [scoped_job_id] if scoped_job_id else job_ids
 
     candidates_query = User.query.filter_by(role=User.ROLE_CANDIDATE, is_active_account=True)
 
     # This page is the recruiter's applicant list, not the whole platform's
     # candidate pool — only show people who actually applied to one of this
-    # recruiter's own jobs.
-    if job_ids:
+    # recruiter's own jobs (or, if a job is picked from the dropdown, only
+    # people who applied to that specific job).
+    if active_job_ids:
         applied_cand_ids_subquery = (
             db.session.query(Application.candidate_id)
-            .filter(Application.job_id.in_(job_ids))
+            .filter(Application.job_id.in_(active_job_ids))
             .distinct()
             .subquery()
         )
@@ -890,24 +1165,26 @@ def candidates():
                 User.location.ilike(f"%{q}%"),
             )
         )
-    if skill_filter:
-        candidates_query = candidates_query.filter(User.skills.ilike(f"%{skill_filter}%"))
     if exp_filter:
         candidates_query = candidates_query.filter_by(experience_level=exp_filter)
 
     candidates_list = candidates_query.all()
 
     # Re-sync match scores to ensure candidate cards always reflect true live ATS suitability
-    if job_ids and candidates_list:
+    if active_job_ids and candidates_list:
         all_cand_apps = []
         for cand in candidates_list:
-            all_cand_apps.extend([a for a in cand.applications if a.job_id in job_ids])
+            all_cand_apps.extend([a for a in cand.applications if a.job_id in active_job_ids])
         if all_cand_apps:
             refresh_match_scores(all_cand_apps)
 
     candidate_records = []
     for cand in candidates_list:
-        cand_apps = [a for a in cand.applications if a.job_id in job_ids] if job_ids else []
+        # Scoped to the picked job when one is selected, otherwise every
+        # application the candidate has with this recruiter — this is what
+        # makes the dropdown actually filter to what's *relevant* to that
+        # job rather than just narrowing who's in the list.
+        cand_apps = [a for a in cand.applications if a.job_id in active_job_ids] if active_job_ids else []
         best_score = max([a.match_score for a in cand_apps if a.match_score is not None], default=None)
         skills = [s.strip() for s in (cand.skills or "").split(",") if s.strip()]
 
@@ -939,7 +1216,8 @@ def candidates():
         "recruiter/candidates.html",
         candidates=paged_records,
         q=q,
-        skill_filter=skill_filter,
+        job_id_filter=str(scoped_job_id) if scoped_job_id else "",
+        recruiter_jobs=recruiter_jobs,
         exp_filter=exp_filter,
         min_score=min_score,
         page=page,
@@ -1154,7 +1432,7 @@ def pipeline():
 
     all_apps = app_query.order_by(Application.applied_at.desc()).all()
 
-    columns = {
+    full_columns = {
         "applied": [a for a in all_apps if a.status == Application.STATUS_APPLIED],
         "under_review": [a for a in all_apps if a.status == Application.STATUS_UNDER_REVIEW],
         "shortlisted": [a for a in all_apps if a.status == Application.STATUS_SHORTLISTED],
@@ -1168,6 +1446,34 @@ def pipeline():
     if active_stage not in VALID_STAGES:
         active_stage = "applied"
 
+    # Paginate each stage independently (5 per page) — each tab tracks its
+    # own page number (e.g. ?applied_page=2) so switching tabs client-side
+    # doesn't lose another stage's page position.
+    PIPELINE_PAGE_SIZE = 5
+    columns = {}
+    for stage_key, items in full_columns.items():
+        total_count = len(items)
+        total_pages = max(1, (total_count + PIPELINE_PAGE_SIZE - 1) // PIPELINE_PAGE_SIZE)
+        page = request.args.get(f"{stage_key}_page", 1, type=int) or 1
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * PIPELINE_PAGE_SIZE
+        paged = items[start:start + PIPELINE_PAGE_SIZE]
+        # Card context (match label, skill evidence, stage dates) is only
+        # computed for the page actually being viewed — same reasoning as
+        # applicants(): the resume NLP extraction is real per-candidate
+        # work, so we don't want to pay it for every application in every
+        # stage on every pipeline load.
+        card_context = {a.id: _pipeline_card_context(a) for a in paged}
+        columns[stage_key] = {
+            "apps": paged,
+            "card_context": card_context,
+            "total_count": total_count,
+            "page": page,
+            "total_pages": total_pages,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+        }
+
     return render_template(
         "recruiter/pipeline.html",
         jobs=recruiter_jobs,
@@ -1177,6 +1483,7 @@ def pipeline():
         total_count=len(all_apps),
         active_stage=active_stage,
         active_nav="pipeline",
+        today_str=utcnow().strftime("%Y-%m-%d"),
     )
 
 
@@ -1393,34 +1700,165 @@ def update_application_status(application_id):
 
     old_status = application.status
     note = request.form.get("note", "").strip() or None
+
+    # Scheduling (or rescheduling) an interview: the recruiter picks a date
+    # and, optionally, a time/type/interviewer/meeting link on the pipeline
+    # form. Only the date is required — everything else is optional so
+    # other pages that move an application to "interview" without these
+    # details keep working. Rescheduling reuses this same branch: the
+    # status doesn't change (still "interview"), but the guard above lets
+    # a same-status "transition" through untouched.
+    interview_date = None
+    is_scheduling = new_status == Application.STATUS_INTERVIEW
+    if is_scheduling:
+        raw_interview_date = request.form.get("interview_date", "").strip()
+        if raw_interview_date:
+            raw_interview_time = request.form.get("interview_time", "").strip()
+            try:
+                if raw_interview_time:
+                    interview_date = datetime.strptime(f"{raw_interview_date} {raw_interview_time}", "%Y-%m-%d %H:%M")
+                else:
+                    interview_date = datetime.strptime(raw_interview_date, "%Y-%m-%d")
+            except ValueError:
+                flash("That interview date/time doesn't look valid. Please try again.", "error")
+                return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage=old_status))
+        elif old_status != Application.STATUS_INTERVIEW:
+            flash("Pick an interview date to schedule.", "error")
+            return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage=old_status))
+
     application.status = new_status
+    if interview_date:
+        application.interview_date = interview_date
+    if is_scheduling:
+        application.interview_type = request.form.get("interview_type", "").strip() or application.interview_type
+        application.interviewer_name = request.form.get("interviewer_name", "").strip() or application.interviewer_name
+        application.meeting_link = request.form.get("meeting_link", "").strip() or application.meeting_link
+        # Any (re)scheduling action clears a prior "completed" mark — the
+        # recruiter is actively re-setting up this interview.
+        application.interview_completed = False
+
+    if new_status == Application.STATUS_REJECTED:
+        application.rejection_reason = request.form.get("rejection_reason", "").strip() or None
+
+    status_label = new_status.replace("_", " ").title()
+    if interview_date:
+        event_note = note or f"Interview scheduled for {interview_date.strftime('%d %b %Y, %I:%M %p') if raw_interview_time else interview_date.strftime('%d %b %Y')}."
+        notif_message = f"Your interview for {application.job.title} has been scheduled."
+    else:
+        event_note = note or f"Status updated to {new_status.replace('_', ' ')} by recruiter."
+        notif_message = f"Your application status has been updated to '{status_label}'."
+
     db.session.add(ApplicationEvent(
         application_id=application.id,
         status=new_status,
-        note=note or f"Status updated to {new_status.replace('_', ' ')} by recruiter.",
+        note=event_note,
     ))
-
-    status_label = new_status.replace("_", " ").title()
     db.session.add(Notification(
         candidate_id=application.candidate_id,
         title=f"Application update: {application.job.title}",
-        message=f"Your application status has been updated to '{status_label}'.",
+        message=notif_message,
         link=f"/candidate/applications/{application.id}",
     ))
 
     if new_status == Application.STATUS_HIRED:
         _auto_close_other_applications_on_hire(application)
-    elif old_status == Application.STATUS_HIRED and new_status == Application.STATUS_REJECTED:
+    elif old_status == Application.STATUS_HIRED and new_status != Application.STATUS_HIRED:
         _reopen_auto_closed_applications_on_unhire(application)
 
     db.session.commit()
-    flash(f"Candidate status updated to '{status_label}'.", "success")
+    if interview_date:
+        flash(f"Interview scheduled for {interview_date.strftime('%d %b %Y')}. The candidate has been notified.", "success")
+    else:
+        flash(f"Candidate status updated to '{status_label}'.", "success")
 
     if return_to == "pipeline":
         return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage=new_status))
     elif return_to == "intelligence":
         return redirect(url_for("recruiter.candidate_intelligence", candidate_id=application.candidate_id, job_id=application.job_id))
+    elif return_to == "shortlist":
+        return redirect(url_for(
+            "recruiter.job_shortlist",
+            job_id=application.job_id,
+            threshold=request.form.get("threshold", type=float),
+            page=request.form.get("page", type=int),
+        ))
     return redirect(url_for("recruiter.applicants", job_id=application.job_id))
+
+
+@recruiter_bp.route("/applications/<int:application_id>/interview/complete", methods=["POST"])
+@approved_recruiter_required
+def mark_interview_complete(application_id):
+    """Close out an interview without changing status — the recruiter still
+    needs to decide Hire/Reject/back-to-Shortlist afterwards."""
+    application = (
+        Application.query
+        .join(Job, Application.job_id == Job.id)
+        .filter(
+            Application.id == application_id,
+            Job.recruiter_profile_id == current_user.recruiter_profile.id,
+        )
+        .first_or_404()
+    )
+    if application.status != Application.STATUS_INTERVIEW:
+        flash("Only an application currently in the Interview stage can be marked complete.", "error")
+        return redirect(url_for("recruiter.pipeline", job_id=application.job_id))
+
+    application.interview_completed = True
+    db.session.add(ApplicationEvent(
+        application_id=application.id,
+        status=Application.STATUS_INTERVIEW,
+        note="Interview marked complete by recruiter.",
+    ))
+    db.session.commit()
+    flash("Interview marked as complete.", "success")
+    return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage="interview"))
+
+
+@recruiter_bp.route("/applications/<int:application_id>/undo", methods=["POST"])
+@approved_recruiter_required
+def undo_application_status(application_id):
+    """Revert a Hire or Reject back to whatever stage the candidate was in
+    immediately before that action — a safety net for a mis-click, not a
+    general-purpose status editor (hence restricted to those two statuses)."""
+    application = (
+        Application.query
+        .join(Job, Application.job_id == Job.id)
+        .filter(
+            Application.id == application_id,
+            Job.recruiter_profile_id == current_user.recruiter_profile.id,
+        )
+        .first_or_404()
+    )
+
+    if application.status not in (Application.STATUS_HIRED, Application.STATUS_REJECTED):
+        flash("Undo is only available right after a Hire or Reject action.", "error")
+        return redirect(url_for("recruiter.pipeline", job_id=application.job_id))
+
+    old_status = application.status
+    prev_status = _status_before_latest(application)
+
+    application.status = prev_status
+    if prev_status != Application.STATUS_REJECTED:
+        application.rejection_reason = None
+
+    db.session.add(ApplicationEvent(
+        application_id=application.id,
+        status=prev_status,
+        note=f"Undone: reverted from '{old_status.replace('_', ' ')}' back to '{prev_status.replace('_', ' ')}' (recruiter undo).",
+    ))
+    db.session.add(Notification(
+        candidate_id=application.candidate_id,
+        title=f"Application update: {application.job.title}",
+        message=f"Your application status was reverted back to '{prev_status.replace('_', ' ').title()}'.",
+        link=f"/candidate/applications/{application.id}",
+    ))
+
+    if old_status == Application.STATUS_HIRED and prev_status != Application.STATUS_HIRED:
+        _reopen_auto_closed_applications_on_unhire(application)
+
+    db.session.commit()
+    flash(f"Undone — candidate moved back to '{prev_status.replace('_', ' ').title()}'.", "success")
+    return redirect(url_for("recruiter.pipeline", job_id=application.job_id, stage=application.status))
 
 
 def _safe_int(value):
