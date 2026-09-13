@@ -57,7 +57,35 @@
         </label>
         {% for error in form.resume_file.errors %}<p class="text-xs text-rose-500 mt-1">{{ error }}</p>{% endfor %}
 
-        {% if primary_resume and primary_resume.raw_text %}
+        {% if candidate_resumes %}
+        <div class="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex flex-wrap items-center justify-between gap-2">
+          <div class="min-w-0 flex-1">
+            <span class="text-[11px] font-bold text-indigo-900 block truncate">Load From Saved Resumes:</span>
+            {% if candidate_resumes|length > 1 %}
+            <select id="select-saved-resume" onchange="loadSelectedSavedResume(this.value)" class="mt-1 bg-white border border-indigo-200 text-xs font-semibold text-ink rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-xs truncate cursor-pointer">
+              <option value="" disabled selected>-- Choose a saved resume --</option>
+              {% for cr in candidate_resumes %}
+              <option value="{{ cr.id }}">{{ cr.name or 'Untitled Resume' }}{% if cr.is_primary %} (★ Primary){% endif %}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <span class="text-xs text-slate-600 block truncate">{{ candidate_resumes[0].name or 'Primary Resume' }}</span>
+            {% endif %}
+          </div>
+          <script type="application/json" id="saved-resumes-json">
+            {
+              {% for cr in candidate_resumes %}
+              "{{ cr.id }}": {{ cr.raw_text|tojson|safe }}{% if not loop.last %},{% endif %}
+              {% endfor %}
+            }
+          </script>
+          {% if candidate_resumes|length == 1 %}
+          <button type="button" onclick="loadSelectedSavedResume('{{ candidate_resumes[0].id }}')" class="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-colors shadow-2xs cursor-pointer">
+            <i class="bi bi-file-earmark-text mr-1"></i>Load Resume
+          </button>
+          {% endif %}
+        </div>
+        {% elif primary_resume and primary_resume.raw_text %}
         <div class="p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center justify-between gap-2">
           <div class="min-w-0">
             <span class="text-[11px] font-bold text-indigo-900 block truncate">Saved Resume on Profile:</span>
@@ -647,11 +675,12 @@
     });
   }
 
-  function loadSavedPrimaryResume() {
-    const dataEl = document.getElementById('saved-primary-resume-json');
+  function loadSelectedSavedResume(resumeId) {
+    const dataEl = document.getElementById('saved-resumes-json');
     if (!dataEl) return;
     try {
-      const text = JSON.parse(dataEl.textContent);
+      const data = JSON.parse(dataEl.textContent);
+      const text = data[resumeId] || '';
       const input = document.getElementById('resume-text-input');
       if (input) {
         input.value = text;
@@ -659,6 +688,13 @@
       }
     } catch (e) {
       console.error('Error loading saved resume:', e);
+    }
+  }
+
+  function loadSavedPrimaryResume() {
+    const select = document.getElementById('select-saved-resume');
+    if (select && select.value) {
+      loadSelectedSavedResume(select.value);
     }
   }
 </script>

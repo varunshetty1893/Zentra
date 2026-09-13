@@ -184,7 +184,20 @@ def job_detail(job_id):
     breakdown = match_breakdown(resume_text, job) if resume_text else None
 
     is_saved = current_user.is_authenticated and current_user.is_candidate and SavedJob.query.filter_by(candidate_id=current_user.id, job_id=job.id).first() is not None
-    return render_template("job_detail.html", job=job, breakdown=breakdown, is_saved=is_saved)
+    candidate_resumes = []
+    primary_resume = None
+    if current_user.is_authenticated and current_user.is_candidate:
+        candidate_resumes = Resume.get_active_resumes(current_user.id)
+        primary_resume = Resume.get_primary(current_user.id)
+
+    return render_template(
+        "job_detail.html",
+        job=job,
+        breakdown=breakdown,
+        is_saved=is_saved,
+        candidate_resumes=candidate_resumes,
+        primary_resume=primary_resume,
+    )
 
 
 @main_bp.route("/companies/<int:company_id>")

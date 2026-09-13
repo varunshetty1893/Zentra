@@ -24,6 +24,7 @@ class Resume(db.Model):
     last_missing_keywords = db.Column(db.Text, nullable=True)  # comma-separated
 
     is_primary = db.Column(db.Boolean, default=False)
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False, server_default="false")
     created_at = db.Column(db.DateTime, default=utcnow)
     # Bumped whenever resume content/name/target_role is edited in place
     # (Resume Builder's save-existing path). created_at is never touched
@@ -36,13 +37,20 @@ class Resume(db.Model):
 
     @classmethod
     def get_primary(cls, candidate_id):
-        """Fetch the designated primary resume for a candidate, falling back to the most recent."""
+        """Fetch the designated primary resume for a candidate, falling back to the most recent non-deleted."""
         if not candidate_id:
             return None
-        primary = cls.query.filter_by(candidate_id=candidate_id, is_primary=True).first()
+        primary = cls.query.filter_by(candidate_id=candidate_id, is_primary=True, is_deleted=False).first()
         if primary:
             return primary
-        return cls.query.filter_by(candidate_id=candidate_id).order_by(cls.created_at.desc()).first()
+        return cls.query.filter_by(candidate_id=candidate_id, is_deleted=False).order_by(cls.created_at.desc()).first()
+
+    @classmethod
+    def get_active_resumes(cls, candidate_id):
+        """Fetch all active (non-deleted) resumes for a candidate, ordered newest first."""
+        if not candidate_id:
+            return []
+        return cls.query.filter_by(candidate_id=candidate_id, is_deleted=False).order_by(cls.created_at.desc()).all()
 
     def __repr__(self):
         return f"<Resume {self.id} candidate={self.candidate_id}>"

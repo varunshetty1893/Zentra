@@ -24,7 +24,7 @@ class Config:
     # has no such connection-establishment phase to time out.
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
-        "connect_args": {"connect_timeout": 5} if _raw_db_url.startswith("postgresql://") else {},
+        "connect_args": {"connect_timeout": 15} if _raw_db_url.startswith("postgresql://") else {},
     }
 
 

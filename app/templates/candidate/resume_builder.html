@@ -74,13 +74,35 @@
 <div class="bg-slate-50 min-h-screen border-b border-slate-200/80">
   <!-- TOP CONTROLS BAR -->
   <header class="bg-white border-b border-slate-200 px-6 py-3 sticky top-16 z-30 flex flex-wrap items-center justify-between gap-4">
-    <div class="flex items-center gap-4 flex-1 min-w-[280px]">
+    <div class="flex items-center flex-wrap gap-3 flex-1 min-w-[280px]">
       <a href="{{ url_for('candidate.my_resumes') }}" title="Back to Resumes" class="w-8 h-8 rounded-lg border border-slate-200 text-slate-600 hover:bg-lavender flex items-center justify-center text-xs transition-colors shrink-0">
         <i class="bi bi-arrow-left"></i>
       </a>
-      <div class="flex items-center gap-2 flex-1">
-        <input type="text" id="builder-resume-name" value="{{ resume_obj.name if resume_obj else 'My Resume' }}" placeholder="Resume Name (e.g. Backend Engineer Resume)" class="font-bold text-ink text-sm sm:text-base bg-transparent hover:bg-slate-50 focus:bg-white px-2 py-1 rounded-lg border border-transparent focus:border-indigo-300 focus:outline-none transition-all w-full max-w-sm" oninput="markUnsaved()">
+
+      <!-- RESUME SELECTOR DROPDOWN -->
+      {% if candidate_resumes %}
+      <div class="flex items-center gap-1.5 shrink-0">
+        <label for="builder-resume-select" class="text-xs font-bold text-slate-500 hidden sm:inline"><i class="bi bi-folder2 text-indigo-600"></i> Version:</label>
+        <select id="builder-resume-select" onchange="switchBuilderResume(this.value)" class="bg-slate-50 hover:bg-slate-100 focus:bg-white text-xs font-bold text-ink border border-slate-200 rounded-xl px-2.5 py-1.5 transition-all focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer max-w-[210px] truncate shadow-2xs">
+          {% for cr in candidate_resumes %}
+          <option value="{{ cr.id }}" {% if resume_obj and resume_obj.id == cr.id %}selected{% endif %}>
+            {{ cr.name or 'Untitled Resume' }}{% if cr.is_primary %} (★ Primary){% endif %}
+          </option>
+          {% endfor %}
+          <option disabled>──────────</option>
+          <option value="new" {% if not resume_obj %}selected{% endif %}>+ Create New Resume</option>
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="flex items-center gap-2 flex-1 min-w-[180px]">
+        <input type="text" id="builder-resume-name" value="{{ resume_obj.name if resume_obj else 'My Resume' }}" placeholder="Resume Name (e.g. Backend Engineer Resume)" class="font-bold text-ink text-sm sm:text-base bg-transparent hover:bg-slate-50 focus:bg-white px-2 py-1 rounded-lg border border-transparent focus:border-indigo-300 focus:outline-none transition-all w-full max-w-xs" oninput="markUnsaved()">
         <input type="hidden" id="builder-resume-id" value="{{ resume_obj.id if resume_obj else '' }}">
+
+        <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold px-2 py-1 rounded-lg border {% if resume_obj and resume_obj.is_primary %}bg-amber-50 text-amber-700 border-amber-200{% else %}bg-slate-50 text-slate-500 border-slate-200 hover:border-amber-300{% endif %} transition-all select-none shrink-0" title="Set as primary resume for job applications">
+          <input type="checkbox" id="builder-is-primary" class="rounded text-amber-500 focus:ring-amber-400 w-3.5 h-3.5" {% if resume_obj and resume_obj.is_primary %}checked{% endif %} onchange="markUnsaved()">
+          <span class="hidden md:inline">Primary</span>
+        </label>
       </div>
     </div>
 
@@ -1355,12 +1377,29 @@
     preview.innerHTML = html;
   }
 
+  // --- SWITCH RESUME ---
+  function switchBuilderResume(val) {
+    if (typeof isUnsaved !== 'undefined' && isUnsaved) {
+      if (!confirm('You have unsaved changes. Switching resumes will discard them. Continue?')) {
+        const sel = document.getElementById('builder-resume-select');
+        if (sel) sel.value = "{{ resume_obj.id if resume_obj else 'new' }}";
+        return;
+      }
+    }
+    if (val === 'new') {
+      window.location.href = "{{ url_for('candidate.resume_builder') }}?new=1";
+    } else {
+      window.location.href = "{{ url_for('candidate.resume_builder') }}?resume_id=" + val;
+    }
+  }
+
   // --- SAVE RESUME ---
   async function saveResume() {
     if (!validateBuilder()) return;
     const name = document.getElementById('builder-resume-name').value.trim() || 'My Resume';
     const targetJobId = document.getElementById('builder-target-job').value;
     const resumeId = document.getElementById('builder-resume-id').value;
+    const isPrimary = document.getElementById('builder-is-primary')?.checked || false;
 
     const btn = document.getElementById('btn-save-resume');
     btn.disabled = true;
@@ -1377,11 +1416,21 @@
           target_role: resumeState.personal.title || '',
           target_job_id: targetJobId,
           resume_data: resumeState,
+          is_primary: isPrimary,
         })
       });
       const data = await res.json();
       if (data.status === 'success') {
         document.getElementById('builder-resume-id').value = data.resume_id;
+
+        // Update URL query param if this was a new resume
+        const currentUrl = new URL(window.location.href);
+        if (!currentUrl.searchParams.get('resume_id')) {
+          currentUrl.searchParams.set('resume_id', data.resume_id);
+          currentUrl.searchParams.delete('new');
+          window.history.replaceState({}, '', currentUrl.toString());
+        }
+
         markSaved();
         triggerLiveAtsCheck();
       } else {

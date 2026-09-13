@@ -7,6 +7,7 @@ from app.models.resume import Resume
 from app.models.saved_job import SavedJob
 from app.models.recruiter_profile import RecruiterProfile
 from app.models.support_ticket import SupportTicket
+from app.models.application import Application
 
 
 class TestCandidateResumesAndPrivacy(unittest.TestCase):
@@ -234,6 +235,126 @@ class TestCandidateResumesAndPrivacy(unittest.TestCase):
         self.assertTrue(uploaded.is_primary)
         self.assertIn("Kubernetes", uploaded.raw_text)
 
+    def test_08_delete_resume_with_application_soft_deletes_and_promotes_primary(self):
+        """Deleting a resume associated with an application soft-deletes it without FK error and promotes another resume."""
+        client = self.login_candidate()
+
+        # Create a second resume for candidate
+        second_resume = Resume(
+            candidate_id=self.candidate.id,
+            name="Tailored AI Resume",
+            target_role="AI Engineer",
+            raw_text="Candidate Tester\nAI Engineer\nSkills: PyTorch, NLP, LLMs",
+            is_primary=False,
+        )
+        db.session.add(second_resume)
+        db.session.commit()
+
+        # Link primary resume to an application
+        app_record = Application(
+            job_id=self.job.id,
+            candidate_id=self.candidate.id,
+            resume_id=self.primary_resume.id,
+            status=Application.STATUS_APPLIED,
+        )
+        db.session.add(app_record)
+        db.session.commit()
+
+        # Delete the primary resume
+        del_res = client.post(f"/candidate/resumes/{self.primary_resume.id}/delete", follow_redirects=True)
+        self.assertEqual(del_res.status_code, 200)
+
+        # Verify primary resume is soft-deleted, not hard-deleted (preserving foreign key integrity for recruiter)
+        primary_refreshed = db.session.get(Resume, self.primary_resume.id)
+        self.assertIsNotNone(primary_refreshed)
+        self.assertTrue(primary_refreshed.is_deleted)
+        self.assertFalse(primary_refreshed.is_primary)
+
+        # Verify second resume is now primary
+        second_refreshed = db.session.get(Resume, second_resume.id)
+        self.assertTrue(second_refreshed.is_primary)
+        self.assertFalse(second_refreshed.is_deleted)
+
+        # Verify active resumes list does not include the deleted resume
+        active_resumes = Resume.get_active_resumes(self.candidate.id)
+        self.assertEqual(len(active_resumes), 1)
+        self.assertEqual(active_resumes[0].id, second_resume.id)
+
+        # Ensure my-resumes page renders without the soft-deleted resume
+        my_res = client.get("/candidate/my-resumes")
+        self.assertEqual(my_res.status_code, 200)
+        self.assertNotIn(b"My Master Resume", my_res.data)
+        self.assertIn(b"Tailored AI Resume", my_res.data)
+
+    def test_09_apply_with_specific_resume_id(self):
+        """Candidate can select a specific active resume when applying to a job."""
+        client = self.login_candidate()
+
+        # Create tailored resume
+        tailored_resume = Resume(
+            candidate_id=self.candidate.id,
+            name="Tailored Python Resume",
+            target_role="Senior Python Engineer",
+            raw_text="Candidate Tester\nSenior Python Engineer\nPython, Flask, Docker, SQL expert.",
+            is_primary=False,
+        )
+        db.session.add(tailored_resume)
+        db.session.commit()
+
+        # Apply using the tailored resume (not the primary one)
+        apply_res = client.post(f"/candidate/jobs/{self.job.id}/apply", data={
+            "resume_id": str(tailored_resume.id),
+            "cover_note": "Tailored application note",
+        }, follow_redirects=True)
+        self.assertEqual(apply_res.status_code, 200)
+
+        # Verify application record uses the tailored resume
+        application = Application.query.filter_by(job_id=self.job.id, candidate_id=self.candidate.id).first()
+        self.assertIsNotNone(application)
+        self.assertEqual(application.resume_id, tailored_resume.id)
+
+    def test_10_resume_builder_select_and_save_resume(self):
+        """Resume builder provides selection of resumes and allows saving new or existing resumes."""
+        client = self.login_candidate()
+
+        # 1. Access builder with existing resume_id
+        res = client.get(f"/candidate/resume-builder?resume_id={self.primary_resume.id}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(b"My Master Resume", res.data)
+        self.assertIn(b"builder-resume-select", res.data)
+
+        # 2. Access builder in new mode
+        res_new = client.get("/candidate/resume-builder?new=1")
+        self.assertEqual(res_new.status_code, 200)
+        self.assertIn(b"builder-resume-select", res_new.data)
+
+        # 3. Save new resume via builder API
+        save_res = client.post("/candidate/api/resume-builder/save", json={
+            "name": "Brand New Built Resume",
+            "target_role": "Backend Lead",
+            "is_primary": True,
+            "resume_data": {
+                "personal": {"name": "Candidate Tester", "email": "cand@test.com"},
+                "summary": "Experienced backend lead architect.",
+                "skills": ["Python", "Flask", "PostgreSQL"],
+                "experience": [],
+                "education": [],
+            }
+        })
+        self.assertEqual(save_res.status_code, 200)
+        data = save_res.get_json()
+        self.assertEqual(data["status"], "success")
+        new_resume_id = data["resume_id"]
+
+        new_resume = db.session.get(Resume, new_resume_id)
+        self.assertIsNotNone(new_resume)
+        self.assertTrue(new_resume.is_primary)
+
+        # Check that previous primary resume is no longer primary
+        primary_refreshed = db.session.get(Resume, self.primary_resume.id)
+        self.assertFalse(primary_refreshed.is_primary)
+
 
 if __name__ == "__main__":
     unittest.main()
+

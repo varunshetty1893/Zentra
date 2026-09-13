@@ -62,9 +62,22 @@
           </form>
           {% endif %}
         {% elif current_user.is_authenticated and current_user.is_candidate %}
-          <form method="POST" action="{{ url_for('candidate.apply', job_id=job.id) }}">
+          <form method="POST" action="{{ url_for('candidate.apply', job_id=job.id) }}" class="flex flex-wrap items-center gap-2">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="inline-flex items-center gap-2 bg-ink hover:bg-slate-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm">
+            {% if candidate_resumes and candidate_resumes|length > 1 %}
+            <div class="relative">
+              <select name="resume_id" class="bg-white border border-slate-200 text-ink text-xs sm:text-sm font-semibold rounded-xl px-3 py-2.5 hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all cursor-pointer" title="Choose which resume to submit">
+                {% for r in candidate_resumes %}
+                <option value="{{ r.id }}" {% if r.is_primary %}selected{% endif %}>
+                  {{ r.name or 'Untitled Resume' }}{% if r.is_primary %} (★ Primary){% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            {% elif candidate_resumes %}
+            <input type="hidden" name="resume_id" value="{{ candidate_resumes[0].id }}"/>
+            {% endif %}
+            <button type="submit" class="inline-flex items-center gap-2 bg-ink hover:bg-slate-800 text-white text-sm font-semibold px-6 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer">
               <i class="bi bi-send-fill text-xs"></i> Apply now
             </button>
           </form>

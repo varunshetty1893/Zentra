@@ -102,6 +102,11 @@ def resume_ai():
         for j in active_jobs
     ]
 
+    candidate_resumes = (
+        Resume.get_active_resumes(current_user.id)
+        if (current_user.is_authenticated and current_user.is_candidate)
+        else []
+    )
     primary_resume = (
         Resume.get_primary(current_user.id)
         if (current_user.is_authenticated and current_user.is_candidate)
@@ -278,7 +283,16 @@ def resume_ai():
         history = Resume.query.filter_by(candidate_id=current_user.id).filter(Resume.last_ats_score.isnot(None)).order_by(Resume.created_at.desc()).limit(6).all()
         if len(history) > 1:
             improvement = round(history[0].last_ats_score - history[-1].last_ats_score)
-    return render_template("resume_ai.html", form=form, result=result, ats_history=history, ats_improvement=improvement, active_jobs=active_jobs, primary_resume=primary_resume)
+    return render_template(
+        "resume_ai.html",
+        form=form,
+        result=result,
+        ats_history=history,
+        ats_improvement=improvement,
+        active_jobs=active_jobs,
+        primary_resume=primary_resume,
+        candidate_resumes=candidate_resumes,
+    )
 
 
 @candidate_bp.route("/resume-builder", methods=["GET", "POST"])
@@ -336,12 +350,16 @@ def resume_builder():
             download_name=f"{safe_name}_resume.pdf",
         )
 
+    candidate_resumes = Resume.get_active_resumes(current_user.id)
     resume_id = request.args.get("resume_id", type=int)
     target_job_id = request.args.get("target_job_id", type=int)
+    is_new = request.args.get("new") == "1"
 
     resume_obj = None
     if resume_id:
-        resume_obj = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first()
+        resume_obj = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first()
+    elif not is_new and candidate_resumes:
+        resume_obj = Resume.get_primary(current_user.id)
 
     active_jobs = (
         Job.query.filter(
@@ -436,6 +454,7 @@ def resume_builder():
         target_job=target_job,
         active_jobs=active_jobs,
         initial_data=initial_data,
+        candidate_resumes=candidate_resumes,
     )
 
 
@@ -499,8 +518,9 @@ def api_save_resume_builder():
         ats_result["detected_category"] = detected_category
 
     # Save or update Resume
+    make_primary = data.get("is_primary")
     if resume_id:
-        resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first()
+        resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first()
         if not resume:
             return jsonify({"status": "error", "message": "Resume not found"}), 404
         content_changed = resume.raw_text != serialized_text
@@ -510,16 +530,25 @@ def api_save_resume_builder():
         resume.last_ats_score = ats_result["score"]
         resume.last_matched_keywords = ", ".join(ats_result.get("matched_keywords", []))
         resume.last_missing_keywords = ", ".join(ats_result.get("missing_keywords", []))
+        if make_primary is True:
+            for r in Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).all():
+                r.is_primary = False
+            resume.is_primary = True
+        elif make_primary is False and resume.is_primary:
+            resume.is_primary = False
+            remaining = Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).filter(Resume.id != resume.id).order_by(Resume.created_at.desc()).first()
+            if remaining:
+                remaining.is_primary = True
+
         if content_changed:
-            # This resume row is edited in place (unlike Resume AI, which
-            # always creates a new row) — any Application already pinned to
-            # this resume_id now has a stale match_score, since scoring was
-            # computed against the old raw_text. Re-score just those rows;
-            # applications tied to other resumes of this candidate are
-            # unaffected.
             _rescore_applications_for_resume(resume)
     else:
-        has_primary = Resume.query.filter_by(candidate_id=current_user.id, is_primary=True).first() is not None
+        has_primary = Resume.query.filter_by(candidate_id=current_user.id, is_primary=True, is_deleted=False).first() is not None
+        should_be_primary = bool(make_primary) or not has_primary
+        if should_be_primary:
+            for r in Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).all():
+                r.is_primary = False
+
         resume = Resume(
             candidate_id=current_user.id,
             source="builder",
@@ -529,7 +558,7 @@ def api_save_resume_builder():
             last_ats_score=ats_result["score"],
             last_matched_keywords=", ".join(ats_result.get("matched_keywords", [])),
             last_missing_keywords=", ".join(ats_result.get("missing_keywords", [])),
-            is_primary=not has_primary,
+            is_primary=should_be_primary,
         )
         db.session.add(resume)
 
@@ -538,6 +567,8 @@ def api_save_resume_builder():
     return jsonify({
         "status": "success",
         "resume_id": resume.id,
+        "is_primary": resume.is_primary,
+        "name": resume.name,
         "ats_result": ats_result,
         "updated_at": (resume.updated_at or resume.created_at).strftime("%d %b %Y, %H:%M"),
     })
@@ -646,20 +677,36 @@ def api_analyze_live():
     })
 
 
+def ensure_single_primary_resume(candidate_id):
+    """Ensures exactly one active resume is marked as primary if the candidate has any resumes."""
+    resumes = Resume.query.filter_by(candidate_id=candidate_id, is_deleted=False).order_by(Resume.created_at.desc()).all()
+    if not resumes:
+        return
+    primaries = [r for r in resumes if r.is_primary]
+    if len(primaries) == 1:
+        return
+    # If more than one or zero primaries, make the most recent one primary
+    for r in resumes:
+        r.is_primary = False
+    resumes[0].is_primary = True
+    db.session.commit()
+
+
 @candidate_bp.route("/my-resumes")
 @role_required("candidate")
 def my_resumes():
-    resumes = Resume.query.filter_by(candidate_id=current_user.id).order_by(Resume.created_at.desc()).all()
+    ensure_single_primary_resume(current_user.id)
+    resumes = Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).order_by(Resume.created_at.desc()).all()
     return render_template("candidate/my_resumes.html", resumes=resumes)
 
 
 @candidate_bp.route("/resumes/<int:resume_id>/set-primary", methods=["POST"])
 @role_required("candidate")
 def set_primary_resume(resume_id):
-    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first_or_404()
+    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first_or_404()
     # Unset is_primary on all candidate resumes then set on this one
-    Resume.query.filter_by(candidate_id=current_user.id).update({"is_primary": False})
-    resume.is_primary = True
+    for r in Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).all():
+        r.is_primary = (r.id == resume.id)
     db.session.commit()
     flash(f"'{resume.name or 'Resume'}' set as your primary resume.", "success")
     return redirect(url_for("candidate.my_resumes"))
@@ -668,7 +715,7 @@ def set_primary_resume(resume_id):
 @candidate_bp.route("/resumes/<int:resume_id>/duplicate", methods=["POST"])
 @role_required("candidate")
 def duplicate_resume(resume_id):
-    original = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first_or_404()
+    original = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first_or_404()
     copy_name = f"Copy of {original.name or 'Resume'}"
     copy_resume = Resume(
         candidate_id=current_user.id,
@@ -692,32 +739,53 @@ def duplicate_resume(resume_id):
 @candidate_bp.route("/resumes/<int:resume_id>/delete", methods=["POST"])
 @role_required("candidate")
 def delete_resume(resume_id):
-    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first_or_404()
+    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first_or_404()
     was_primary = resume.is_primary
     stored_name = resume.stored_filename
-    db.session.delete(resume)
-    db.session.commit()
+    resume_name = resume.name or "Resume"
+
+    has_applications = Application.query.filter_by(resume_id=resume.id).first() is not None
+
+    if has_applications:
+        # Soft-delete so existing recruiter application records remain valid
+        resume.is_deleted = True
+        resume.is_primary = False
+        db.session.commit()
+    else:
+        # Hard-delete detached resume
+        try:
+            db.session.delete(resume)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            r = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first()
+            if r:
+                r.is_deleted = True
+                r.is_primary = False
+                db.session.commit()
+
+        # Clean up disk file if no other resume uses it
+        if stored_name:
+            remaining_count = Resume.query.filter_by(stored_filename=stored_name, is_deleted=False).count()
+            if remaining_count == 0:
+                upload_folder = os.path.abspath(current_app.config["UPLOAD_FOLDER"])
+                file_path = os.path.abspath(os.path.join(upload_folder, stored_name))
+                if os.path.commonpath([upload_folder, file_path]) == upload_folder and os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                    except OSError:
+                        pass
 
     if was_primary:
-        # Promote newest remaining resume to primary
-        remaining = Resume.query.filter_by(candidate_id=current_user.id).order_by(Resume.created_at.desc()).first()
+        # Promote newest remaining active resume to primary
+        remaining = Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).order_by(Resume.created_at.desc()).first()
         if remaining:
             remaining.is_primary = True
             db.session.commit()
+            flash(f"Resume '{resume_name}' deleted. '{remaining.name or 'Resume'}' is now your primary resume.", "info")
+            return redirect(url_for("candidate.my_resumes"))
 
-    # Reference-aware cleanup: delete physical file ONLY if no other resume uses it
-    if stored_name:
-        remaining_count = Resume.query.filter_by(stored_filename=stored_name).count()
-        if remaining_count == 0:
-            upload_folder = os.path.abspath(current_app.config["UPLOAD_FOLDER"])
-            file_path = os.path.abspath(os.path.join(upload_folder, stored_name))
-            if os.path.commonpath([upload_folder, file_path]) == upload_folder and os.path.isfile(file_path):
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    pass
-
-    flash("Resume deleted.", "info")
+    flash(f"Resume '{resume_name}' deleted.", "info")
     return redirect(url_for("candidate.my_resumes"))
 
 
@@ -774,11 +842,12 @@ def upload_resume():
         custom_role = structured_data.get("headline") or (detected_cat.title() if detected_cat else "General Role")
 
     # Check primary
-    has_primary = Resume.query.filter_by(candidate_id=current_user.id, is_primary=True).first() is not None
+    has_primary = Resume.query.filter_by(candidate_id=current_user.id, is_primary=True, is_deleted=False).first() is not None
     make_primary = bool(request.form.get("is_primary")) or not has_primary
 
     if make_primary:
-        Resume.query.filter_by(candidate_id=current_user.id).update({"is_primary": False})
+        for r in Resume.query.filter_by(candidate_id=current_user.id, is_deleted=False).all():
+            r.is_primary = False
 
     new_resume = Resume(
         candidate_id=current_user.id,
@@ -804,7 +873,7 @@ def upload_resume():
 @role_required("candidate")
 def api_resume_preview(resume_id):
     """Return structured and plain text resume data for in-browser modal viewing."""
-    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first_or_404()
+    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first_or_404()
     structured = parse_resume_to_structured_dict(resume.raw_text or "", resume.name or "", resume.target_role or "")
     return jsonify({
         "status": "success",
@@ -828,7 +897,7 @@ def api_resume_preview(resume_id):
 @candidate_bp.route("/resumes/<int:resume_id>/pdf")
 @role_required("candidate")
 def download_resume_pdf(resume_id):
-    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id).first_or_404()
+    resume = Resume.query.filter_by(id=resume_id, candidate_id=current_user.id, is_deleted=False).first_or_404()
     structured = parse_resume_to_structured_dict(resume.raw_text, resume.name, resume.target_role)
     template = structured.get("template", "modern")
     pdf_buffer = build_structured_resume_pdf(structured, template=template)
@@ -1182,7 +1251,13 @@ def apply(job_id):
         flash("The application deadline for this job has passed.", "error")
         return redirect(url_for("main.job_detail", job_id=job.id))
 
-    resume = Resume.get_primary(current_user.id)
+    selected_resume_id = request.form.get("resume_id", type=int)
+    resume = None
+    if selected_resume_id:
+        resume = Resume.query.filter_by(id=selected_resume_id, candidate_id=current_user.id, is_deleted=False).first()
+    if resume is None:
+        resume = Resume.get_primary(current_user.id)
+
     if resume is None:
         flash("Add a resume via Resume AI before applying.", "error")
         return redirect(url_for("candidate.resume_ai"))

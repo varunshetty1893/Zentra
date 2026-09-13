@@ -39,15 +39,23 @@ with app.app_context():
                 continue
 
             col_type = column.type.compile(dialect=db.engine.dialect)
-            nullable = "" if column.nullable else " NOT NULL"
             default_clause = ""
-            # Adding a NOT NULL column to a table with existing rows needs a
-            # default, or Postgres will refuse. Our models don't currently
-            # define server defaults, so fall back to nullable if needed.
-            if not column.nullable and column.default is None:
-                nullable = ""  # allow NULL instead of failing the ALTER
+            if column.server_default is not None:
+                default_clause = f" DEFAULT {column.server_default.arg}"
+            elif column.default is not None and hasattr(column.default, "arg"):
+                val = column.default.arg
+                if isinstance(val, bool):
+                    default_clause = f" DEFAULT {'true' if val else 'false'}"
+                elif isinstance(val, (int, float)):
+                    default_clause = f" DEFAULT {val}"
+                elif isinstance(val, str):
+                    default_clause = f" DEFAULT '{val}'"
 
-            ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {col_type}{nullable}{default_clause}'
+            nullable = "" if column.nullable else " NOT NULL"
+            if not column.nullable and not default_clause:
+                nullable = ""  # allow NULL if no default available
+
+            ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {col_type}{default_clause}{nullable}'
             with db.engine.begin() as conn:
                 conn.execute(text(ddl))
             print(f"Added column: {table.name}.{column.name} ({col_type})")
