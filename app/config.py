@@ -17,6 +17,7 @@ class Config:
     # SQLAlchemy maps to psycopg2 (the driver in requirements.txt). A URL
     # like "postgresql+psycopg://" would make SQLAlchemy import psycopg v3,
     # which is not installed, and crash the app at startup.
+    _raw_db_url = _raw_db_url.strip().strip("\"'").strip()
     for _prefix in ("postgres://", "postgresql+psycopg://", "postgresql+psycopg2://"):
         if _raw_db_url.startswith(_prefix):
             _raw_db_url = "postgresql://" + _raw_db_url[len(_prefix):]
