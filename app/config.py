@@ -13,8 +13,14 @@ class Config:
     _raw_db_url = os.environ.get(
         "DATABASE_URL", "sqlite:///" + os.path.join(basedir, "dev.db")
     )
-    if _raw_db_url.startswith("postgres://"):
-        _raw_db_url = _raw_db_url.replace("postgres://", "postgresql://", 1)
+    # Normalise every Postgres URL variant to plain "postgresql://", which
+    # SQLAlchemy maps to psycopg2 (the driver in requirements.txt). A URL
+    # like "postgresql+psycopg://" would make SQLAlchemy import psycopg v3,
+    # which is not installed, and crash the app at startup.
+    for _prefix in ("postgres://", "postgresql+psycopg://", "postgresql+psycopg2://"):
+        if _raw_db_url.startswith(_prefix):
+            _raw_db_url = "postgresql://" + _raw_db_url[len(_prefix):]
+            break
     SQLALCHEMY_DATABASE_URI = _raw_db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # connect_timeout: without this, a request that needs the DB hangs
